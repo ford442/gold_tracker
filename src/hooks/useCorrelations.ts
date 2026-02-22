@@ -10,7 +10,7 @@ const PERIOD_POINTS: Record<CorrelationPeriod, number> = {
   '1h': 1,
   '1d': 24,
   '7d': 168,
-  '30d': 168, // limited by sparkline data
+  '30d': 168, // CoinGecko free tier provides 7 days of hourly sparkline data
 };
 
 export function useCorrelations(period: CorrelationPeriod): CorrelationMatrix {
@@ -37,6 +37,6 @@ export function useCorrelations(period: CorrelationPeriod): CorrelationMatrix {
       })
     );
 
-    return { period, assets: ASSET_LABELS, matrix, updatedAt: Date.now() };
+    return { period, assets: ASSET_LABELS, matrix };
   }, [prices, goldSpot, period]);
 }

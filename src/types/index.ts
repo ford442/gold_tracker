@@ -29,7 +29,6 @@ export interface CorrelationMatrix {
   period: CorrelationPeriod;
   assets: string[];
   matrix: number[][];
-  updatedAt: number;
 }
 
 export interface PortfolioEntry {

@@ -86,7 +86,7 @@ export function CorrelationMatrix() {
           </tbody>
         </table>
 
-        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--color-muted)' }}>
+        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: 'var(--color-muted)', flexWrap: 'wrap' }}>
           <span>Legend:</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <div style={{ width: '20px', height: '10px', borderRadius: '3px', background: 'rgb(255,94,125)' }} />
@@ -96,7 +96,10 @@ export function CorrelationMatrix() {
             <div style={{ width: '20px', height: '10px', borderRadius: '3px', background: 'rgb(66,153,225)' }} />
             <span>+1 Synced</span>
           </div>
-          <span style={{ marginLeft: 'auto' }}>Auto-updates every 60s</span>
+          <span style={{ marginLeft: 'auto' }}>
+            Auto-updates every 60s
+            {period === '30d' && ' · 30d uses 7d sparkline data (free API limit)'}
+          </span>
         </div>
       </div>
     </section>
