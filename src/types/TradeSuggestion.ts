@@ -8,6 +8,9 @@ export interface TradeSuggestion {
   confidence: number;       // 0-100
   buttonText: string;
   coinbaseDeepLink?: string;
+  // For execution
+  productId: string;        // e.g. "PAXG-USD"
+  side: 'BUY' | 'SELL';     // Primary action side
 }
 
 export type TradeSuggestionType = TradeSuggestion['type'];

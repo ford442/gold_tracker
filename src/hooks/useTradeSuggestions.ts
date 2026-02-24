@@ -41,7 +41,9 @@ export function useTradeSuggestions() {
         buttonText: 'Execute Swap',
         coinbaseDeepLink: isPaxgExpensive
           ? 'https://www.coinbase.com/advanced-trade/spot/PAXG-USD' // Sell PAXG first
-          : 'https://www.coinbase.com/advanced-trade/spot/PAXG-USD' // Buy PAXG first
+          : 'https://www.coinbase.com/advanced-trade/spot/PAXG-USD', // Buy PAXG first
+        productId: isPaxgExpensive ? 'PAXG-USD' : 'PAXG-USD',
+        side: isPaxgExpensive ? 'SELL' : 'BUY',
       });
     }
 
@@ -63,7 +65,9 @@ export function useTradeSuggestions() {
           reason: `${name} is trading at a ${premium.toFixed(2)}% ${isPremium ? 'premium' : 'discount'} to spot gold.`,
           confidence: 85,
           buttonText: 'Go to Trade',
-          coinbaseDeepLink: `https://www.coinbase.com/advanced-trade/spot/${token.symbol}-USD`
+          coinbaseDeepLink: `https://www.coinbase.com/advanced-trade/spot/${token.symbol}-USD`,
+          productId: `${token.symbol}-USD`,
+          side: isPremium ? 'SELL' : 'BUY',
         });
       }
     };
@@ -97,7 +101,9 @@ export function useTradeSuggestions() {
             buttonText: 'Rebalance',
             coinbaseDeepLink: isBtcDown
                ? 'https://www.coinbase.com/advanced-trade/spot/PAXG-BTC' // If supported, or convert via USD
-               : 'https://www.coinbase.com/advanced-trade/spot/BTC-USD'
+               : 'https://www.coinbase.com/advanced-trade/spot/BTC-USD',
+            productId: isBtcDown ? 'PAXG-USD' : 'BTC-USD',
+            side: isBtcDown ? 'BUY' : 'BUY',
           });
         }
       }

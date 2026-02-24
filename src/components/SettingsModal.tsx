@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { useSettingsStore } from '../store/settingsStore';
+import { useSettingsStore, type Exchange } from '../store/settingsStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { tradeService } from '../services/tradeService';
+import { testConnection } from '../lib/coinbaseTrader';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,36 +11,114 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const {
-    coinbaseApiKey,
-    coinbaseApiSecret,
-    coinbasePassphrase,
+    selectedExchange,
+    cdpKeyName: storedCdpKeyName,
+    cdpPrivateKey: storedCdpPrivateKey,
+    krakenApiKey: storedKrakenKey,
+    krakenApiSecret: storedKrakenSecret,
     autoTradeEnabled,
     dryRun,
     maxTradeSize,
     dailyLossLimit,
-    setApiKey,
-    setApiSecret,
-    setPassphrase,
+    setSelectedExchange,
+    setCdpKeyName,
+    setCdpPrivateKey,
+    setKrakenApiKey,
+    setKrakenApiSecret,
     toggleAutoTrade,
     toggleDryRun,
     setMaxTradeSize,
     setDailyLossLimit,
   } = useSettingsStore();
 
+  const { user, signIn, signUp, signOut, loading: authLoading } = useAuthStore();
+
+  // Local state for form inputs
+  const [cdpKeyName, setLocalCdpKeyName] = useState(storedCdpKeyName);
+  const [cdpPrivateKey, setLocalCdpPrivateKey] = useState(storedCdpPrivateKey);
+  const [krakenApiKey, setLocalKrakenKey] = useState(storedKrakenKey);
+  const [krakenApiSecret, setLocalKrakenSecret] = useState(storedKrakenSecret);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  
+  // Auth form state
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleTestConnection = async () => {
     setTestStatus('loading');
-    // Simulate API call to /v3/brokerage/accounts
-    setTimeout(() => {
-      if (coinbaseApiKey && coinbaseApiSecret) {
-        setTestStatus('success');
+    try {
+      if (user) {
+        // Test via Supabase backend
+        const success = await tradeService.testConnectionServerSide(selectedExchange);
+        setTestStatus(success ? 'success' : 'error');
       } else {
-        setTestStatus('error');
+        // Test locally (Coinbase only)
+        if (selectedExchange === 'coinbase') {
+          const success = await testConnection();
+          setTestStatus(success ? 'success' : 'error');
+        } else {
+          alert('Kraken testing requires Supabase login');
+          setTestStatus('error');
+        }
       }
-    }, 1500);
+    } catch {
+      setTestStatus('error');
+    }
+  };
+
+  const handleSaveKeys = async () => {
+    setSaveStatus('saving');
+    try {
+      // Save to localStorage first
+      if (selectedExchange === 'coinbase') {
+        setCdpKeyName(cdpKeyName);
+        setCdpPrivateKey(cdpPrivateKey);
+      } else {
+        setKrakenApiKey(krakenApiKey);
+        setKrakenApiSecret(krakenApiSecret);
+      }
+
+      // If logged in, also save to Supabase
+      if (user) {
+        const keys: Record<string, string> = selectedExchange === 'coinbase' 
+          ? { cdpKeyName, cdpPrivateKey }
+          : { krakenApiKey, krakenApiSecret };
+        await tradeService.storeKeys(selectedExchange, keys);
+      }
+
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Failed to save keys:', err);
+      setSaveStatus('error');
+    }
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    try {
+      if (authMode === 'signin') {
+        await signIn(email, password);
+      } else {
+        await signUp(email, password);
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Authentication failed');
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setLocalCdpKeyName('');
+    setLocalCdpPrivateKey('');
+    setLocalKrakenKey('');
+    setLocalKrakenSecret('');
   };
 
   return (
@@ -55,6 +136,103 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
         </div>
 
+        {/* Authentication Section */}
+        <div className="mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
+            🔐 Account {user ? '(Signed In)' : '(Required for Secure Storage)'}
+          </h3>
+          
+          {authLoading ? (
+            <p className="text-sm text-gray-500">Loading...</p>
+          ) : user ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Signed in as: <span className="font-mono font-medium">{user.email}</span>
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400">
+                ✅ Keys can be stored encrypted on Supabase
+              </p>
+              <button
+                onClick={handleSignOut}
+                className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 underline"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleAuth} className="space-y-3">
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signin')}
+                  className={`text-xs px-3 py-1 rounded ${authMode === 'signin' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signup')}
+                  className={`text-xs px-3 py-1 rounded ${authMode === 'signup' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}
+                >
+                  Sign Up
+                </button>
+              </div>
+              
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2 text-sm"
+                required
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2 text-sm"
+                required
+              />
+              
+              {authError && (
+                <p className="text-xs text-red-600 dark:text-red-400">{authError}</p>
+              )}
+              
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+              >
+                {authMode === 'signin' ? 'Sign In' : 'Create Account'}
+              </button>
+              
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Or continue without signing in (keys stored locally only)
+              </p>
+            </form>
+          )}
+        </div>
+
+        {/* Exchange Selector */}
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Preferred Exchange
+          </label>
+          <select
+            value={selectedExchange}
+            onChange={(e) => setSelectedExchange(e.target.value as Exchange)}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
+          >
+            <option value="coinbase">Coinbase Advanced</option>
+            <option value="kraken">Kraken Pro (recommended for PAXG/XAUT)</option>
+          </select>
+          {selectedExchange === 'kraken' && (
+            <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+              ✅ Kraken offers direct PAXG/XAUT pair with lower fees!
+            </p>
+          )}
+        </div>
+
         {/* Security Warning */}
         <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
           <div className="flex items-start gap-3">
@@ -64,7 +242,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 Security Warning
               </h3>
               <p className="mt-1 text-xs text-red-700 dark:text-red-400">
-                API keys are stored locally in your browser only. Never share them.
+                {user 
+                  ? `API keys will be AES-encrypted on Supabase. Never stored in browser.`
+                  : `API keys stored locally in your browser only. Sign in for secure server storage.`}
                 Ensure your API key has <strong>Trade</strong> permission only (never Withdraw).
                 Use "Dry-Run" mode first to test safely.
               </p>
@@ -73,61 +253,108 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         <div className="space-y-6">
-          {/* API Credentials */}
+          {/* API Credentials - Conditional based on exchange */}
           <section className="space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Coinbase Advanced Trade API
+              {selectedExchange === 'coinbase' ? 'Coinbase CDP API Keys (2026)' : 'Kraken API Keys'}
             </h3>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  value={coinbaseApiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
-                  placeholder="organizations/{org_id}/apiKeys/{key_id}"
-                />
-              </div>
+            {selectedExchange === 'coinbase' ? (
+              // Coinbase CDP Fields
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    CDP Key Name
+                  </label>
+                  <input
+                    type="text"
+                    value={cdpKeyName}
+                    onChange={(e) => setLocalCdpKeyName(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
+                    placeholder="organizations/{org_id}/apiKeys/{key_id}"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Found in your Coinbase Developer Platform dashboard
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  API Secret
-                </label>
-                <input
-                  type="password"
-                  value={coinbaseApiSecret}
-                  onChange={(e) => setApiSecret(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
-                  placeholder="— — — — — — — — —"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    CDP Private Key (PEM)
+                  </label>
+                  <textarea
+                    value={cdpPrivateKey}
+                    onChange={(e) => setLocalCdpPrivateKey(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all font-mono"
+                    placeholder="-----BEGIN EC PRIVATE KEY-----&#10;...&#10;-----END EC PRIVATE KEY-----"
+                    rows={4}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Download this when you create your CDP API key. Keep it secure!
+                  </p>
+                </div>
               </div>
+            ) : (
+              // Kraken Fields
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Kraken API Key
+                  </label>
+                  <input
+                    type="text"
+                    value={krakenApiKey}
+                    onChange={(e) => setLocalKrakenKey(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
+                    placeholder="YOUR_KRAKEN_API_KEY"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Get from Kraken Pro → Settings → API
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Passphrase (Optional)
-                </label>
-                <input
-                  type="password"
-                  value={coinbasePassphrase || ''}
-                  onChange={(e) => setPassphrase(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
-                  placeholder="Only if required by your API key"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Kraken API Secret
+                  </label>
+                  <input
+                    type="password"
+                    value={krakenApiSecret}
+                    onChange={(e) => setLocalKrakenSecret(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 p-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all"
+                    placeholder="YOUR_KRAKEN_API_SECRET"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Never share this. Stored encrypted.
+                  </p>
+                </div>
+
+                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-3 border border-emerald-200 dark:border-emerald-800">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                    <strong>Why Kraken?</strong> Direct PAXG↔XAUT pair means one trade instead of two, 
+                    saving ~0.6% in fees compared to Coinbase!
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleTestConnection}
-                disabled={testStatus === 'loading' || !coinbaseApiKey}
+                disabled={testStatus === 'loading'}
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {testStatus === 'loading' ? 'Checking...' : 'Test Connection'}
+                {testStatus === 'loading' ? 'Checking...' : `Test ${selectedExchange === 'coinbase' ? 'CDP' : 'API'} Connection`}
               </button>
+              
+              <button
+                onClick={handleSaveKeys}
+                disabled={saveStatus === 'saving'}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-yellow-500 hover:bg-yellow-600 text-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? '✓ Saved' : user ? 'Save Securely' : 'Save Locally'}
+              </button>
+              
               {testStatus === 'success' && (
                 <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-fade-in">
                   ✓ Connected

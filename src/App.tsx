@@ -9,10 +9,17 @@ import { SettingsModal } from './components/SettingsModal';
 import { TradeSuggestionsPanel } from './components/TradeSuggestionsPanel';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
+import { useAuthStore } from './store/useAuthStore';
 
 function App() {
   const { mode } = useThemeStore();
+  const initAuth = useAuthStore((s) => s.init);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   // Apply theme class on mount
   useEffect(() => {
