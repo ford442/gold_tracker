@@ -142,7 +142,7 @@ export function PerformanceComparisonChart() {
                 borderRadius: '8px',
                 color: 'var(--color-text)',
               }}
-              formatter={(value: number) => [`${value >= 0 ? '+' : ''}${value}%`, '']}
+              formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
             />
             <Legend 
               wrapperStyle={{ color: 'var(--color-text)', paddingTop: '20px' }}
