@@ -35,9 +35,13 @@ jobs:
         run: |
           sed -i 's|src="/|src="./|g' dist/index.html
           sed -i 's|href="/|href="./|g' dist/index.html
-          # Add cache-busting meta tag
+          # Add cache-busting meta tag and timestamp
+          TIMESTAMP=$(date +%s)
           sed -i 's|<head>|<head>\n  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n  <meta http-equiv="Pragma" content="no-cache">\n  <meta http-equiv="Expires" content="0">|' dist/index.html
-          echo "✅ Paths fixed and cache-busting added"
+          # Append version to JS/CSS references for cache busting
+          sed -i "s|\.js\"|.js?v=$TIMESTAMP\"|g" dist/index.html
+          sed -i "s|\.css\"|.css?v=$TIMESTAMP\"|g" dist/index.html
+          echo "✅ Paths fixed and cache-busting added (v$TIMESTAMP)"
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
