@@ -31,11 +31,13 @@ jobs:
       - name: Build
         run: npm run build
         
-      - name: Fix relative paths
+      - name: Fix relative paths and add cache-busting
         run: |
           sed -i 's|src="/|src="./|g' dist/index.html
           sed -i 's|href="/|href="./|g' dist/index.html
-          echo "✅ Paths fixed"
+          # Add cache-busting meta tag
+          sed -i 's|<head>|<head>\n  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n  <meta http-equiv="Pragma" content="no-cache">\n  <meta http-equiv="Expires" content="0">|' dist/index.html
+          echo "✅ Paths fixed and cache-busting added"
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
