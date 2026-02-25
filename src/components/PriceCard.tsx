@@ -66,8 +66,8 @@ export function PriceCard({ data, goldPrice }: Props) {
 
       {/* Sparkline */}
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height: '50px', width: '100%', minWidth: '100px', minHeight: '50px' }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={50}>
             <LineChart data={sparkData}>
               <Line
                 type="monotone"

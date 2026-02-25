@@ -108,8 +108,8 @@ export async function fetchGoldNews(): Promise<NewsItem[]> {
       .filter((item) =>
         keywords.some((kw) => item.title.toLowerCase().includes(kw))
       );
-  } catch (err) {
-    console.warn('News fetch failed:', err);
+  } catch {
+    // Silently fall back to mock news (CORS proxy often unreliable)
     return getMockNews();
   }
 }
