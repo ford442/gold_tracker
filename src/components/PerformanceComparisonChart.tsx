@@ -120,8 +120,8 @@ export function PerformanceComparisonChart() {
         padding: '20px',
       }}>
         {/* Chart */}
-        <div style={{ height: '300px', width: '100%' }}>
-          <LineChart width={800} height={300} data={data} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+        <div style={{ height: '300px', width: '100%', overflowX: 'auto' }}>
+          <LineChart width={700} height={280} data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
             <XAxis 
               dataKey="day" 
