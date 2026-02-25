@@ -80,38 +80,10 @@ export async function fetchSpotGold(apiKey?: string): Promise<GoldSpot> {
   return getMockSpotGold();
 }
 
+// Note: RSS fetching disabled due to CORS proxy reliability issues
+// News updates can be added via Supabase in the future
 export async function fetchGoldNews(): Promise<NewsItem[]> {
-  const kitcoUrl = 'https://www.kitco.com/news/gold/rss';
-  try {
-    const res = await fetch(`${CORS_PROXY}${encodeURIComponent(kitcoUrl)}`);
-    if (!res.ok) throw new Error('RSS fetch failed');
-    const text = await res.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/xml');
-    const items = Array.from(doc.querySelectorAll('item')).slice(0, 20);
-    const keywords = ['inflation', 'fed', 'china', 'tariff', 'gold', 'paxg', 'xaut', 'bitcoin', 'rate', 'dollar'];
-
-    return items
-      .map((item, i) => ({
-        id: `news-${i}`,
-        title: item.querySelector('title')?.textContent ?? '',
-        url: item.querySelector('link')?.textContent ?? '#',
-        source: 'Kitco',
-        publishedAt: item.querySelector('pubDate')?.textContent ?? new Date().toISOString(),
-        snippet: (() => {
-          const raw = item.querySelector('description')?.textContent ?? '';
-          const div = document.createElement('div');
-          div.innerHTML = raw;
-          return div.textContent?.slice(0, 150) ?? undefined;
-        })(),
-      }))
-      .filter((item) =>
-        keywords.some((kw) => item.title.toLowerCase().includes(kw))
-      );
-  } catch {
-    // Silently fall back to mock news (CORS proxy often unreliable)
-    return getMockNews();
-  }
+  return getMockNews();
 }
 
 // Mock data for development / API-key-free usage

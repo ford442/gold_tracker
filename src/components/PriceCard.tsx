@@ -1,4 +1,4 @@
-import { ResponsiveContainer, LineChart, Line, Tooltip } from 'recharts';
+import { LineChart, Line } from 'recharts';
 import type { PriceData } from '../types';
 import { formatPrice, formatPercent } from '../lib/utils';
 
@@ -66,22 +66,16 @@ export function PriceCard({ data, goldPrice }: Props) {
 
       {/* Sparkline */}
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%', minWidth: '100px', minHeight: '50px' }}>
-          <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={50}>
-            <LineChart data={sparkData}>
-              <Line
-                type="monotone"
-                dataKey="price"
-                stroke={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'}
-                strokeWidth={1.5}
-                dot={false}
-              />
-              <Tooltip
-                contentStyle={{ display: 'none' }}
-                wrapperStyle={{ display: 'none' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div style={{ height: '50px', width: '100%' }}>
+          <LineChart width={200} height={50} data={sparkData}>
+            <Line
+              type="monotone"
+              dataKey="price"
+              stroke={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'}
+              strokeWidth={1.5}
+              dot={false}
+            />
+          </LineChart>
         </div>
       )}
     </div>

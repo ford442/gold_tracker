@@ -1,4 +1,4 @@
-import { ResponsiveContainer, LineChart, Line } from 'recharts';
+import { LineChart, Line } from 'recharts';
 import type { GoldSpot } from '../types';
 import { formatPrice, formatPercent } from '../lib/utils';
 
@@ -46,18 +46,16 @@ export function GoldSpotCard({ data }: Props) {
       </div>
 
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%', minWidth: '100px', minHeight: '50px' }}>
-          <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={50}>
-            <LineChart data={sparkData}>
-              <Line
-                type="monotone"
-                dataKey="price"
-                stroke="var(--color-gold)"
-                strokeWidth={1.5}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div style={{ height: '50px', width: '100%' }}>
+          <LineChart width={200} height={50} data={sparkData}>
+            <Line
+              type="monotone"
+              dataKey="price"
+              stroke="var(--color-gold)"
+              strokeWidth={1.5}
+              dot={false}
+            />
+          </LineChart>
         </div>
       )}
     </div>
