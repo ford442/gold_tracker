@@ -7,6 +7,7 @@ import { NewsFeed } from './components/NewsFeed';
 import { DarkModeToggle } from './components/DarkModeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { TradeSuggestionsPanel } from './components/TradeSuggestionsPanel';
+import { PerformanceComparisonChart } from './components/PerformanceComparisonChart';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -84,6 +85,11 @@ function App() {
         {/* Trade Suggestions - full width (Priority) */}
         <div className="col-span-1 lg:col-span-12">
           <TradeSuggestionsPanel />
+        </div>
+
+        {/* Performance Comparison Chart - full width */}
+        <div className="col-span-1 lg:col-span-12">
+          <PerformanceComparisonChart />
         </div>
 
         {/* Correlation + Alerts */}

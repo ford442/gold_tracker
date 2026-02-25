@@ -12,7 +12,7 @@ function mockSparkline(basePrice: number, points = 24): SparklinePoint[] {
 }
 
 export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string, PriceData>> {
-  const ids = 'pax-gold,tether-gold,bitcoin,ethereum';
+  const ids = 'pax-gold,tether-gold,bitcoin,ethereum,bitcoin-cash';
   const headers: Record<string, string> = {};
   if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
 
@@ -93,6 +93,7 @@ export function getMockCryptoPrices(): Record<string, PriceData> {
     ['tether-gold', 'XAUT', 'Tether Gold', 3284.2, 0.08, 2.1],
     ['bitcoin', 'BTC', 'Bitcoin', 97450.0, -1.8, 5.6],
     ['ethereum', 'ETH', 'Ethereum', 3850.0, -2.1, 3.2],
+    ['bitcoin-cash', 'BCH', 'Bitcoin Cash', 504.0, 0.5, 1.2],
   ];
   return Object.fromEntries(
     base.map(([id, symbol, name, price, c24, c7]) => [

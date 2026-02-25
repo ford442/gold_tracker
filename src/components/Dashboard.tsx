@@ -2,7 +2,7 @@ import { usePriceStore } from '../store/priceStore';
 import { PriceCard } from './PriceCard';
 import { GoldSpotCard } from './GoldSpotCard';
 
-const ORDERED_IDS = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'];
+const ORDERED_IDS = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum', 'bitcoin-cash'];
 
 export function Dashboard() {
   const { prices, goldSpot, isLoading, lastUpdated } = usePriceStore();
