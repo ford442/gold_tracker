@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { usePriceStore } from '../store/priceStore';
 
 export function GlobalArbitrageMonitor() {
-  const { prices, goldSpot } = usePriceStore();
+  const { prices } = usePriceStore();
   const [shanghaiPremium, setShanghaiPremium] = useState<number>(22.4);
   const [loading, setLoading] = useState(true);
-  const [asiaSignal, setAsiaSignal] = useState({ premium: 1.8, volumeChange: 34 });
+  const [asiaSignal] = useState({ premium: 1.8, volumeChange: 34 });
 
   const paxg = prices['pax-gold']?.price || 0;
   const xaut = prices['tether-gold']?.price || 0;
