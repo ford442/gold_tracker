@@ -8,6 +8,7 @@ import { DarkModeToggle } from './components/DarkModeToggle';
 import { SettingsModal } from './components/SettingsModal';
 import { TradeSuggestionsPanel } from './components/TradeSuggestionsPanel';
 import { PerformanceComparisonChart } from './components/PerformanceComparisonChart';
+import { GlobalArbitrageMonitor } from './components/GlobalArbitrageMonitor';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -90,6 +91,11 @@ function App() {
         {/* Performance Comparison Chart - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PerformanceComparisonChart />
+        </div>
+
+        {/* Global Arbitrage Monitor - full width */}
+        <div className="col-span-1 lg:col-span-12">
+          <GlobalArbitrageMonitor />
         </div>
 
         {/* Correlation + Alerts */}
