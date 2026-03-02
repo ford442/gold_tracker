@@ -37,6 +37,8 @@ export interface PortfolioEntry {
   name: string;
   amount: number;
   buyPrice: number;
+  /** 'coinbase' entries are auto-synced; 'manual' entries are user-added */
+  source?: 'coinbase' | 'manual';
 }
 
 export interface AlertItem {
