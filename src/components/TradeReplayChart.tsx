@@ -132,8 +132,16 @@ export function TradeReplayChart() {
     const pnl = lastPrice - entry;
     const pnlPct = entry > 0 ? (pnl / entry) * 100 : 0;
     const allPrices = data.map(d => d.price).filter(Boolean);
+
+    // Max drawdown: track running peak from entry, measure worst drop from it
+    let runningPeak = entry;
+    let worstDD = 0;
+    for (const p of allPrices) {
+      if (p > runningPeak) runningPeak = p;
+      const dd = runningPeak > 0 ? ((p - runningPeak) / runningPeak) * 100 : 0;
+      if (dd < worstDD) worstDD = dd;
+    }
     const maxPrice = Math.max(...allPrices);
-    const peakToTrough = entry > 0 ? ((Math.min(...allPrices) - maxPrice) / maxPrice) * 100 : 0;
 
     return {
       chartData: displayData,
@@ -141,7 +149,7 @@ export function TradeReplayChart() {
       entryPrice: entry,
       stats: {
         sinceEntry: pnlPct,
-        maxDD: peakToTrough,
+        maxDD: worstDD,
         current: lastPrice,
         high: maxPrice,
       },
@@ -256,7 +264,7 @@ export function TradeReplayChart() {
                 stroke="var(--color-muted)"
                 tick={{ fill: 'var(--color-muted)', fontSize: 10 }}
                 tickMargin={8}
-                interval={isMobile ? Math.ceil(chartData.length / 5) : 'preserveStartEnd'}
+                interval={isMobile ? Math.max(1, Math.ceil(chartData.length / 5)) : 'preserveStartEnd'}
               />
               <YAxis
                 stroke="var(--color-muted)"

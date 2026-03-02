@@ -77,7 +77,8 @@ export function PnLOverTimeChart() {
       }
 
       if (totalPnl > peakPnl) peakPnl = totalPnl;
-      const dd = peakPnl > 0 ? ((totalPnl - peakPnl) / peakPnl) * 100 : (totalPnl < 0 ? totalPnl : 0);
+      // Drawdown as percentage from peak (always negative or zero)
+      const dd = peakPnl > 0 ? ((totalPnl - peakPnl) / peakPnl) * 100 : 0;
       if (dd < worstDD) worstDD = dd;
 
       const hoursAgo = steps - 1 - i;
