@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { TradeSuggestionsPanel } from './components/TradeSuggestionsPanel';
 import { PerformanceComparisonChart } from './components/PerformanceComparisonChart';
 import { GlobalArbitrageMonitor } from './components/GlobalArbitrageMonitor';
+import { TradeReplayChart } from './components/TradeReplayChart';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -40,9 +41,10 @@ function App() {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', transition: 'background-color 0.2s' }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
-      {/* Header */}
+      {/* Header with gold gradient accent */}
       <header style={{
         background: 'var(--color-surface)',
+        backgroundImage: 'var(--gradient-gold)',
         borderBottom: '1px solid var(--color-border)',
         padding: '12px 20px',
         display: 'flex',
@@ -51,33 +53,38 @@ function App() {
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-      }}>
+        boxShadow: 'var(--shadow-md)',
+      }} role="banner">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.4rem' }}>🥇</span>
+          <span style={{ fontSize: '1.4rem' }} role="img" aria-label="Gold medal">🥇</span>
           <div>
             <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-gold)', letterSpacing: '-0.02em' }}>
               GoldTrackr
             </div>
             <div style={{ fontSize: '0.65rem', color: 'var(--color-muted)', letterSpacing: '0.05em', marginTop: '-2px' }}>
-              REAL-TIME GOLD & CRYPTO
+              REAL-TIME GOLD &amp; CRYPTO
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <nav className="flex items-center gap-4" aria-label="Main navigation">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-            style={{ color: 'var(--color-muted)' }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+            style={{
+              color: 'var(--color-muted)',
+              minHeight: '44px',
+              minWidth: '44px',
+            }}
+            aria-label="Open settings"
           >
             <span>⚙️</span> Settings
           </button>
           <DarkModeToggle />
-        </div>
+        </nav>
       </header>
 
       {/* Main content */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 max-w-[1400px] mx-auto pb-20">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 max-w-[1400px] mx-auto pb-20" role="main">
         {/* Dashboard - full width */}
         <div className="col-span-1 lg:col-span-12">
           <Dashboard />
@@ -86,6 +93,11 @@ function App() {
         {/* Trade Suggestions - full width (Priority) */}
         <div className="col-span-1 lg:col-span-12">
           <TradeSuggestionsPanel />
+        </div>
+
+        {/* Trade Replay & Projections - full width (NEW) */}
+        <div className="col-span-1 lg:col-span-12">
+          <TradeReplayChart />
         </div>
 
         {/* Performance Comparison Chart - full width */}
@@ -124,7 +136,7 @@ function App() {
         textAlign: 'center',
         color: 'var(--color-muted)',
         fontSize: '0.75rem',
-      }}>
+      }} role="contentinfo">
         Data: CoinGecko · MetalPrice API · Kitco RSS · Prices auto-refresh every 60s · Not financial advice
       </footer>
     </div>

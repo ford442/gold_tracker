@@ -2,6 +2,7 @@
 
 @layer base {
   :root {
+    /* Colors */
     --color-bg: #0f1117;
     --color-surface: #1a1d2e;
     --color-surface2: #252840;
@@ -9,10 +10,42 @@
     --color-text: #e2e8f0;
     --color-muted: #8892b0;
     --color-gold: #f5c842;
+    --color-gold-dim: rgba(245,200,66,0.15);
     --color-green: #00d8a4;
+    --color-green-dim: rgba(0,216,164,0.12);
     --color-red: #ff5e7d;
+    --color-red-dim: rgba(255,94,125,0.12);
     --color-blue: #4299e1;
     --color-accent: #7c5cfc;
+    --color-accent-dim: rgba(124,92,252,0.12);
+
+    /* Typography */
+    --font-xs: 0.7rem;
+    --font-sm: 0.8rem;
+    --font-base: 0.875rem;
+    --font-lg: 1.1rem;
+    --font-xl: 1.4rem;
+
+    /* Spacing */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 14px;
+    --space-lg: 20px;
+    --space-xl: 32px;
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --radius-full: 999px;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.25);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
+
+    /* Gold gradient */
+    --gradient-gold: linear-gradient(135deg, rgba(245,200,66,0.08) 0%, transparent 60%);
   }
   .light {
     --color-bg: #f8fafc;
@@ -22,10 +55,19 @@
     --color-text: #1e293b;
     --color-muted: #64748b;
     --color-gold: #d97706;
+    --color-gold-dim: rgba(217,119,6,0.1);
     --color-green: #059669;
+    --color-green-dim: rgba(5,150,105,0.1);
     --color-red: #dc2626;
+    --color-red-dim: rgba(220,38,38,0.1);
     --color-blue: #2563eb;
     --color-accent: #7c3aed;
+    --color-accent-dim: rgba(124,58,237,0.1);
+
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    --gradient-gold: linear-gradient(135deg, rgba(217,119,6,0.06) 0%, transparent 60%);
   }
   body {
     background-color: var(--color-bg);
@@ -48,4 +90,72 @@
     background: var(--color-border);
     border-radius: 3px;
   }
+
+  /* Skeleton loading animation */
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+  }
+  .skeleton {
+    background: var(--color-surface2);
+    border-radius: var(--radius-md);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+
+  /* Table zebra rows */
+  .table-zebra tbody tr:nth-child(even) {
+    background: var(--color-surface2);
+  }
+  .table-zebra tbody tr:hover {
+    background: var(--color-gold-dim);
+  }
+
+  /* Range pill buttons */
+  .range-pill {
+    padding: var(--space-xs) 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface2);
+    color: var(--color-muted);
+    cursor: pointer;
+    font-size: var(--font-xs);
+    font-weight: 500;
+    min-height: 32px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .range-pill:hover {
+    border-color: var(--color-gold);
+    color: var(--color-text);
+  }
+  .range-pill:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .range-pill[aria-pressed="true"],
+  .range-pill.active {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+    font-weight: 700;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .badge-green { background: var(--color-green-dim); color: var(--color-green); }
+  .badge-red { background: var(--color-red-dim); color: var(--color-red); }
+  .badge-gold { background: var(--color-gold-dim); color: var(--color-gold); }
+  .badge-accent { background: var(--color-accent-dim); color: var(--color-accent); }
 }

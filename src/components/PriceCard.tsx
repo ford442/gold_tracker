@@ -1,4 +1,4 @@
-import { LineChart, Line } from 'recharts';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import type { PriceData } from '../types';
 import { formatPrice, formatPercent } from '../lib/utils';
 
@@ -19,63 +19,61 @@ export function PriceCard({ data, goldPrice }: Props) {
     <div style={{
       background: 'var(--color-surface)',
       border: '1px solid var(--color-border)',
-      borderRadius: '12px',
+      borderRadius: 'var(--radius-lg)',
       padding: '16px',
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
-    }}>
+      boxShadow: 'var(--shadow-sm)',
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+    }} role="article" aria-label={`${data.name} price card`}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>
             {data.symbol}
           </span>
-          <div style={{ fontSize: '0.85rem', color: 'var(--color-muted)', marginTop: '2px' }}>
+          <div style={{ fontSize: 'var(--font-base)', color: 'var(--color-muted)', marginTop: '2px' }}>
             {data.name}
           </div>
         </div>
         {premium !== null && (
-          <span style={{
-            fontSize: '0.7rem',
-            padding: '2px 7px',
-            borderRadius: '999px',
-            background: premium >= 0 ? 'rgba(0,216,164,0.15)' : 'rgba(255,94,125,0.15)',
-            color: premium >= 0 ? 'var(--color-green)' : 'var(--color-red)',
-            fontWeight: 600,
-          }}>
-            {premium >= 0 ? '+' : ''}{premium.toFixed(2)}% vs spot
+          <span className={`badge ${premium >= 0 ? 'badge-green' : 'badge-red'}`}>
+            {premium >= 0 ? '↑ +' : '↓ '}{premium.toFixed(2)}% vs spot
           </span>
         )}
       </div>
 
       {/* Price */}
-      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--color-text)' }}>
+      <div style={{ fontSize: 'var(--font-xl)', fontWeight: 700, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
         {formatPrice(data.price)}
       </div>
 
-      {/* Changes */}
-      <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
+      {/* Changes - arrows + signs for accessibility */}
+      <div style={{ display: 'flex', gap: '12px', fontSize: 'var(--font-sm)' }}>
         <span style={{ color: isPositive24h ? 'var(--color-green)' : 'var(--color-red)' }}>
-          24h {formatPercent(data.change24h)}
+          {isPositive24h ? '↑' : '↓'} 24h {formatPercent(data.change24h)}
         </span>
         <span style={{ color: isPositive7d ? 'var(--color-green)' : 'var(--color-red)' }}>
-          7d {formatPercent(data.change7d)}
+          {isPositive7d ? '↑' : '↓'} 7d {formatPercent(data.change7d)}
         </span>
       </div>
 
-      {/* Sparkline */}
+      {/* Sparkline - responsive */}
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%' }}>
-          <LineChart width={200} height={50} data={sparkData}>
-            <Line
-              type="monotone"
-              dataKey="price"
-              stroke={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'}
-              strokeWidth={1.5}
-              dot={false}
-            />
-          </LineChart>
+        <div style={{ height: '50px', width: '100%' }} aria-hidden="true">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={sparkData}>
+              <Line
+                type="monotone"
+                dataKey="price"
+                stroke={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'}
+                strokeWidth={1.5}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>
