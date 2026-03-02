@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface AuthState {
   user: User | null;
@@ -18,11 +18,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
 
   init: () => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       set({ user: data.session?.user ?? null, session: data.session, loading: false });
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       set({ user: session?.user ?? null, session, loading: false });
     });
   },
