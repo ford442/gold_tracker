@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
+import { ChartSkeleton } from './LoadingSkeleton';
 
 const ASSETS = [
   { id: 'pax-gold',     name: 'PAXG',   color: '#10b981' }, // emerald
@@ -56,41 +57,38 @@ export function PerformanceComparisonChart() {
 
   if (loading) {
     return (
-      <section>
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '12px',
-          padding: '40px',
-          textAlign: 'center',
-          color: 'var(--color-gold)',
-        }}>
-          <div style={{ fontSize: '1.2rem' }}>⏳ Loading 14-day performance data...</div>
+      <section aria-label="Performance Comparison">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
+            📈 Performance Comparison (14 Days)
+          </h2>
         </div>
+        <ChartSkeleton />
       </section>
     );
   }
 
   if (error) {
     return (
-      <section>
+      <section aria-label="Performance Comparison">
         <div style={{
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
-          borderRadius: '12px',
-          padding: '40px',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-xl)',
           textAlign: 'center',
           color: 'var(--color-muted)',
         }}>
-          <div>⚠️ {error}</div>
-          <div style={{ fontSize: '0.8rem', marginTop: '8px' }}>Using fallback data</div>
+          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>⚠️</div>
+          <div>{error}</div>
+          <div style={{ fontSize: 'var(--font-sm)', marginTop: '8px' }}>Try refreshing the page or check your connection</div>
         </div>
       </section>
     );
   }
 
   return (
-    <section>
+    <section aria-label="Performance Comparison">
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -99,67 +97,62 @@ export function PerformanceComparisonChart() {
         flexWrap: 'wrap',
         gap: '8px'
       }}>
-        <h2 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-text)' }}>
+        <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
           📈 Performance Comparison (14 Days)
         </h2>
-        <span style={{ 
-          fontSize: '0.7rem', 
-          background: 'var(--color-surface2)',
-          color: 'var(--color-muted)',
-          padding: '4px 10px',
-          borderRadius: '999px',
-        }}>
-          Normalized % Return
-        </span>
+        <span className="badge badge-accent">Normalized % Return</span>
       </div>
 
       <div style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
-        borderRadius: '12px',
-        padding: '20px',
+        borderRadius: 'var(--radius-lg)',
+        padding: 'var(--space-lg)',
+        boxShadow: 'var(--shadow-sm)',
       }}>
-        {/* Chart */}
-        <div style={{ height: '300px', width: '100%', overflowX: 'auto' }}>
-          <LineChart width={700} height={280} data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-            <XAxis 
-              dataKey="day" 
-              stroke="var(--color-muted)" 
-              tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
-              tickMargin={10}
-            />
-            <YAxis 
-              stroke="var(--color-muted)" 
-              tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
-              tickFormatter={(value) => `${value}%`}
-              domain={['auto', 'auto']}
-            />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: 'var(--color-surface2)', 
-                border: '1px solid var(--color-border)',
-                borderRadius: '8px',
-                color: 'var(--color-text)',
-              }}
-              formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
-            />
-            <Legend 
-              wrapperStyle={{ color: 'var(--color-text)', paddingTop: '20px' }}
-            />
-
-            {ASSETS.map((asset) => (
-              <Line
-                key={asset.id}
-                type="monotone"
-                dataKey={asset.name}
-                stroke={asset.color}
-                strokeWidth={3}
-                dot={{ r: 4, fill: asset.color, strokeWidth: 0 }}
-                activeDot={{ r: 7, stroke: asset.color, strokeWidth: 2 }}
+        {/* Chart - now responsive */}
+        <div style={{ height: '300px', width: '100%' }} role="img" aria-label="14-day performance comparison chart showing normalized returns for PAXG, XAUT, BTC, ETH, and BCH">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis 
+                dataKey="day" 
+                stroke="var(--color-muted)" 
+                tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
+                tickMargin={10}
               />
-            ))}
-          </LineChart>
+              <YAxis 
+                stroke="var(--color-muted)" 
+                tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
+                tickFormatter={(value) => `${value}%`}
+                domain={['auto', 'auto']}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--color-surface2)', 
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--color-text)',
+                }}
+                formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
+              />
+              <Legend 
+                wrapperStyle={{ color: 'var(--color-text)', paddingTop: '20px' }}
+              />
+
+              {ASSETS.map((asset) => (
+                <Line
+                  key={asset.id}
+                  type="monotone"
+                  dataKey={asset.name}
+                  stroke={asset.color}
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: asset.color, strokeWidth: 0 }}
+                  activeDot={{ r: 7, stroke: asset.color, strokeWidth: 2 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Stats bar */}
@@ -174,7 +167,7 @@ export function PerformanceComparisonChart() {
             return (
               <div key={asset.name} style={{
                 background: 'var(--color-surface2)',
-                borderRadius: '8px',
+                borderRadius: 'var(--radius-md)',
                 padding: '12px 8px',
                 textAlign: 'center',
               }}>
@@ -183,10 +176,10 @@ export function PerformanceComparisonChart() {
                   fontWeight: 700,
                   color: latest >= 0 ? 'var(--color-green)' : 'var(--color-red)',
                 }}>
-                  {latest >= 0 ? '+' : ''}{latest}%
+                  {latest >= 0 ? '↑ +' : '↓ '}{latest}%
                 </div>
                 <div style={{ 
-                  fontSize: '0.7rem', 
+                  fontSize: 'var(--font-xs)', 
                   color: 'var(--color-muted)',
                   marginTop: '4px',
                 }}>

@@ -16,11 +16,13 @@ export function DarkModeToggle() {
   return (
     <button
       onClick={toggle}
-      aria-label="Toggle dark/light mode"
+      aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}
+      role="switch"
+      aria-checked={mode === 'light'}
       style={{
         background: 'var(--color-surface2)',
         border: '1px solid var(--color-border)',
-        borderRadius: '8px',
+        borderRadius: 'var(--radius-md)',
         padding: '6px 12px',
         cursor: 'pointer',
         color: 'var(--color-text)',
@@ -29,10 +31,13 @@ export function DarkModeToggle() {
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
+        minHeight: '44px',
+        minWidth: '44px',
+        transition: 'background 0.15s, border-color 0.15s',
       }}
     >
       {mode === 'dark' ? '☀️' : '🌙'}
-      <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+      <span style={{ fontSize: 'var(--font-xs)', opacity: 0.7 }}>
         {mode === 'dark' ? 'Light' : 'Dark'}
       </span>
     </button>
