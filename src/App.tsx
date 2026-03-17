@@ -10,6 +10,7 @@ import { TradeSuggestionsPanel } from './components/TradeSuggestionsPanel';
 import { PerformanceComparisonChart } from './components/PerformanceComparisonChart';
 import { GlobalArbitrageMonitor } from './components/GlobalArbitrageMonitor';
 import { TradeReplayChart } from './components/TradeReplayChart';
+import { StrategyDashboard } from './components/StrategyDashboard';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -121,6 +122,11 @@ function App() {
         {/* Portfolio - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PortfolioTracker />
+        </div>
+
+        {/* Strategy Engine & Back-tester */}
+        <div className="col-span-1 lg:col-span-12">
+          <StrategyDashboard />
         </div>
 
         {/* News feed */}
