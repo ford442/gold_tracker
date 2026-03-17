@@ -602,8 +602,8 @@ export function StrategyDashboard() {
                 />
                 <Tooltip
                   contentStyle={tooltipContentStyle}
-                  formatter={(v: number) => [formatPrice(v), 'Portfolio Value']}
-                  labelFormatter={(t: number) => new Date(t).toLocaleString()}
+                  formatter={(v: unknown) => [formatPrice(v as number), 'Portfolio Value']}
+                  labelFormatter={(t: unknown) => new Date(t as number).toLocaleString()}
                 />
                 <ReferenceLine
                   y={r.initialBalance}
