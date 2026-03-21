@@ -4,7 +4,7 @@ import {
   CartesianGrid, ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 import { usePriceStore } from '../store/priceStore';
-import type { ChartRange, ScenarioMode } from '../types';
+import type { ChartRange, ScenarioMode, SparklinePoint } from '../types';
 
 const RANGES: ChartRange[] = ['1D', '1W', '1M', '3M', '1Y', 'MAX'];
 const SCENARIOS: { value: ScenarioMode; label: string }[] = [
@@ -12,6 +12,24 @@ const SCENARIOS: { value: ScenarioMode; label: string }[] = [
   { value: 'forecast', label: 'Forecast' },
   { value: 'both', label: 'Both' },
 ];
+
+const AVAILABLE_ASSETS = [
+  { id: 'pax-gold',     label: 'PAXG' },
+  { id: 'tether-gold',  label: 'XAUT' },
+  { id: 'bitcoin',      label: 'BTC' },
+  { id: 'ethereum',     label: 'ETH' },
+  { id: 'bitcoin-cash', label: 'BCH' },
+];
+
+const RANGE_PARAMS: Record<ChartRange, { days: string; interval: string }> = {
+  '1D':          { days: '1',   interval: 'hourly' },
+  '1W':          { days: '7',   interval: 'hourly' },
+  '1M':          { days: '30',  interval: 'daily'  },
+  '3M':          { days: '90',  interval: 'daily'  },
+  '1Y':          { days: '365', interval: 'daily'  },
+  'MAX':         { days: 'max', interval: 'daily'  },
+  'SINCE_TRADE': { days: '7',   interval: 'hourly' },
+};
 
 interface ChartDataPoint {
   time: string;
@@ -27,27 +45,20 @@ interface ChartDataPoint {
 
 /** Generate mock trade replay data from live sparkline data */
 function generateReplayData(
-  sparkline: { time: number; price: number }[],
+  sparkline: SparklinePoint[],
   range: ChartRange,
 ): { data: ChartDataPoint[]; trades: ChartDataPoint[] } {
   if (!sparkline || sparkline.length < 2) return { data: [], trades: [] };
 
-  const now = Date.now();
-  const rangeMs: Record<ChartRange, number> = {
-    '1D': 86400000, '1W': 604800000, '1M': 2592000000,
-    '3M': 7776000000, '1Y': 31536000000, 'MAX': Infinity, 'SINCE_TRADE': Infinity,
-  };
-  const cutoff = now - rangeMs[range];
-
-  const filtered = range === 'MAX'
-    ? sparkline
-    : sparkline.filter(p => p.time >= cutoff);
-  const pts = filtered.length > 2 ? filtered : sparkline.slice(-24);
+  // For historical fetches we already have the exact window; just use all points.
+  const pts = sparkline;
 
   const data: ChartDataPoint[] = pts.map((p, i) => {
     const t = new Date(p.time);
-    const label = range === '1D'
-      ? t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const label = range === '1D' || range === '1W'
+      ? (range === '1D'
+          ? t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : t.toLocaleDateString([], { month: 'short', day: 'numeric' }))
       : t.toLocaleDateString([], { month: 'short', day: 'numeric' });
     return {
       time: label,
@@ -99,8 +110,12 @@ export function TradeReplayChart() {
   const [range, setRange] = useState<ChartRange>('1W');
   const [scenario, setScenario] = useState<ScenarioMode>('both');
   const [showBaseline, setShowBaseline] = useState(true);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('pax-gold');
+  const [historicalData, setHistoricalData] = useState<SparklinePoint[] | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -112,12 +127,49 @@ export function TradeReplayChart() {
     return () => obs.disconnect();
   }, []);
 
-  // Use PAXG sparkline as primary series, gold spot as benchmark
-  const paxg = prices['pax-gold'];
-  const sparkline = useMemo(
-    () => paxg?.sparkline ?? goldSpot?.sparkline ?? [],
-    [paxg?.sparkline, goldSpot?.sparkline],
+  // Fetch historical data from CoinGecko whenever asset or range changes
+  useEffect(() => {
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const { days, interval } = RANGE_PARAMS[range];
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const headers: HeadersInit = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
+
+    setIsLoadingHistory(true);
+    setHistoricalData(null);
+
+    fetch(
+      `https://api.coingecko.com/api/v3/coins/${selectedAssetId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`,
+      { signal: controller.signal, headers },
+    )
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json: { prices: [number, number][] }) => {
+        const pts: SparklinePoint[] = json.prices.map(([time, price]) => ({ time, price }));
+        setHistoricalData(pts);
+        setIsLoadingHistory(false);
+      })
+      .catch(err => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // Fall back to store sparkline silently
+        setIsLoadingHistory(false);
+      });
+
+    return () => controller.abort();
+  }, [selectedAssetId, range]);
+
+  // Fallback sparkline from store
+  const localSparkline = useMemo(
+    () => prices[selectedAssetId]?.sparkline ?? goldSpot?.sparkline ?? [],
+    [prices, selectedAssetId, goldSpot?.sparkline],
   );
+
+  const sparkline = historicalData ?? localSparkline;
 
   const { chartData, trades, entryPrice, stats } = useMemo(() => {
     const { data, trades } = generateReplayData(sparkline, range);
@@ -133,7 +185,6 @@ export function TradeReplayChart() {
     const pnlPct = entry > 0 ? (pnl / entry) * 100 : 0;
     const allPrices = data.map(d => d.price).filter(Boolean);
 
-    // Max drawdown: track running peak from entry, measure worst drop from it
     let runningPeak = entry;
     let worstDD = 0;
     for (const p of allPrices) {
@@ -158,7 +209,9 @@ export function TradeReplayChart() {
 
   const handleRangeChange = useCallback((r: ChartRange) => setRange(r), []);
 
-  if (sparkline.length < 2) {
+  const selectedAssetLabel = AVAILABLE_ASSETS.find(a => a.id === selectedAssetId)?.label ?? 'PAXG';
+
+  if (!isLoadingHistory && sparkline.length < 2) {
     return (
       <section aria-label="Trade Replay and Projections">
         <div style={{
@@ -193,7 +246,30 @@ export function TradeReplayChart() {
         <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
           📈 Trade Replay &amp; Projections
         </h2>
-        <span className="badge badge-gold">PAXG / Spot Gold</span>
+
+        {/* Asset selector dropdown */}
+        <select
+          value={selectedAssetId}
+          onChange={(e) => setSelectedAssetId(e.target.value)}
+          aria-label="Select asset to focus"
+          style={{
+            background: 'var(--color-surface2)',
+            color: 'var(--color-text)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '6px 12px',
+            fontSize: 'var(--font-sm)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            outline: 'none',
+          }}
+        >
+          {AVAILABLE_ASSETS.map(asset => (
+            <option key={asset.id} value={asset.id}>
+              {asset.label} / Spot Gold
+            </option>
+          ))}
+        </select>
       </div>
 
       <div ref={containerRef} style={{
@@ -255,7 +331,22 @@ export function TradeReplayChart() {
         </div>
 
         {/* Chart */}
-        <div style={{ width: '100%', height: isMobile ? 240 : 340 }} role="img" aria-label="Trade replay price chart with buy and sell markers">
+        <div
+          style={{ width: '100%', height: isMobile ? 240 : 340, position: 'relative' }}
+          role="img"
+          aria-label={`Trade replay price chart for ${selectedAssetLabel} with buy and sell markers`}
+        >
+          {isLoadingHistory && (
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              background: 'var(--color-surface)', opacity: 0.7,
+              borderRadius: 'var(--radius-md)', zIndex: 10,
+              fontSize: 'var(--font-sm)', color: 'var(--color-muted)',
+            }}>
+              Loading {selectedAssetLabel} data…
+            </div>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: isMobile ? -10 : 0, bottom: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
