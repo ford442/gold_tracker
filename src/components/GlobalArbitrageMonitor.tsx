@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
 import { usePriceStore } from '../store/priceStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { placeOrder } from '../lib/coinbaseTrader';
+import { tradeService } from '../services/tradeService';
+import { toast, Toaster } from 'react-hot-toast';
+import type { TradeOrder, OrderResult } from '../lib/coinbaseTrader';
 
 export function GlobalArbitrageMonitor() {
   const { prices } = usePriceStore();
+  const { dryRun, selectedExchange, maxTradeSize } = useSettingsStore();
+  const { user } = useAuthStore();
   const [shanghaiPremium, setShanghaiPremium] = useState<number>(22.4);
   const [loading, setLoading] = useState(true);
+  const [executing, setExecuting] = useState(false);
   const [asiaSignal] = useState({ premium: 1.8, volumeChange: 34 });
 
   const paxg = prices['pax-gold']?.price || 0;
@@ -23,8 +32,63 @@ export function GlobalArbitrageMonitor() {
   const premiumColor = shanghaiPremium > 15 ? 'var(--color-green)' : 'var(--color-amber)';
   const isArbOpportunity = Math.abs(spread) > 0.55;
 
+  const handleExecuteArb = async () => {
+    if (executing || !isArbOpportunity) return;
+    setExecuting(true);
+
+    // Buy the cheaper token, sell the expensive one
+    const buyToken = spread > 0 ? 'PAXG' : 'XAUT';
+    const sellToken = spread > 0 ? 'XAUT' : 'PAXG';
+
+    const toastId = toast.loading(
+      `Executing ARB: Buy ${buyToken} → Sell ${sellToken} on ${selectedExchange.toUpperCase()}...`,
+      { duration: 30000 }
+    );
+
+    try {
+      const buyOrder: TradeOrder = {
+        product_id: `${buyToken}-USD`,
+        side: 'BUY',
+        order_configuration: {
+          market_market_ioc: { base_size: maxTradeSize.toString() },
+        },
+      };
+
+      let result: OrderResult & { message?: string; exchange?: string };
+
+      if (user) {
+        result = await tradeService.executeTrade(buyOrder, dryRun, selectedExchange);
+      } else {
+        if (selectedExchange === 'kraken') {
+          toast.error('Kraken trading requires sign-in. Please sign in via Settings.', { id: toastId });
+          setExecuting(false);
+          return;
+        }
+        result = await placeOrder(buyOrder, dryRun);
+      }
+
+      if (result.success) {
+        const msg = result.message || `ARB executed: Buy ${buyToken} / Sell ${sellToken}`;
+        toast.success(
+          `${dryRun ? 'DRY RUN' : 'Success'}: ${msg}`,
+          { id: toastId, duration: 5000, icon: dryRun ? '\u{1F512}' : '\u2705' }
+        );
+      } else {
+        toast.error(`Trade Failed: ${result.error || 'Unknown error'}`, { id: toastId, duration: 6000 });
+      }
+    } catch (err) {
+      toast.error(
+        `Execution Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        { id: toastId, duration: 6000 }
+      );
+    } finally {
+      setExecuting(false);
+    }
+  };
+
   return (
     <section>
+      <Toaster position="top-right" />
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -85,23 +149,35 @@ export function GlobalArbitrageMonitor() {
               {isArbOpportunity ? '🚨 ARB OPPORTUNITY' : 'Normal range'}
             </div>
             <button
-              onClick={() => alert('One-click rotate: Buy cheaper token → Sell higher (coming in v0.4)')}
+              onClick={handleExecuteArb}
               style={{
                 marginTop: '16px',
                 width: '100%',
                 padding: '10px',
-                background: isArbOpportunity ? 'var(--color-gold)' : 'var(--color-surface)',
-                color: isArbOpportunity ? '#000' : 'var(--color-muted)',
+                background: executing
+                  ? 'var(--color-surface)'
+                  : isArbOpportunity
+                  ? (dryRun ? 'var(--color-green)' : 'var(--color-gold)')
+                  : 'var(--color-surface)',
+                color: executing
+                  ? 'var(--color-muted)'
+                  : isArbOpportunity
+                  ? '#000'
+                  : 'var(--color-muted)',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                cursor: isArbOpportunity ? 'pointer' : 'not-allowed',
-                opacity: isArbOpportunity ? 1 : 0.5,
+                cursor: isArbOpportunity && !executing ? 'pointer' : 'not-allowed',
+                opacity: isArbOpportunity && !executing ? 1 : 0.5,
               }}
-              disabled={!isArbOpportunity}
+              disabled={!isArbOpportunity || executing}
             >
-              EXECUTE ARB
+              {executing
+                ? 'Executing...'
+                : dryRun
+                ? `DRY RUN ARB on ${selectedExchange.toUpperCase()}`
+                : `EXECUTE ARB on ${selectedExchange.toUpperCase()}`}
             </button>
           </div>
 

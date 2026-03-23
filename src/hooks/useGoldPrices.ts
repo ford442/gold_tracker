@@ -5,7 +5,7 @@ import { fetchCryptoPrices, fetchSpotGold } from '../lib/api';
 const POLL_INTERVAL = 60000; // 60 seconds
 
 export function useGoldPrices() {
-  const { setPrices, setGoldSpot, setLoading, setError } = usePriceStore();
+  const { setPrices, setGoldSpot, setLoading, setError, setIsMockData } = usePriceStore();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -15,13 +15,15 @@ export function useGoldPrices() {
         fetchCryptoPrices(import.meta.env.VITE_COINGECKO_API_KEY),
         fetchSpotGold(import.meta.env.VITE_METALPRICE_API_KEY),
       ]);
+      const isMock = '__mock' in prices && prices.__mock === true;
+      setIsMockData(isMock);
       setPrices(prices);
       setGoldSpot(gold);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prices');
     }
-  }, [setPrices, setGoldSpot, setLoading, setError]);
+  }, [setPrices, setGoldSpot, setLoading, setError, setIsMockData]);
 
   useEffect(() => {
     fetchAll();

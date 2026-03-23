@@ -7,7 +7,7 @@ const ASSET_KEYS = ['gold', 'pax-gold', 'tether-gold', 'bitcoin', 'ethereum'];
 const ASSET_LABELS = ['Gold', 'PAXG', 'XAUT', 'BTC', 'ETH'];
 
 const PERIOD_POINTS: Record<CorrelationPeriod, number> = {
-  '1h': 1,
+  '1h': 6,
   '1d': 24,
   '7d': 168,
   '30d': 168, // CoinGecko free tier provides 7 days of hourly sparkline data

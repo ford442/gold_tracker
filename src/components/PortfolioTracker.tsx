@@ -22,7 +22,7 @@ function getCurrentPrice(id: string, prices: Record<string, { price: number }>, 
 }
 
 export function PortfolioTracker() {
-  const { entries, addEntry, removeEntry, syncCoinbaseBalances } = usePortfolioStore();
+  const { entries, addEntry, updateEntry, removeEntry, syncCoinbaseBalances } = usePortfolioStore();
   const { prices, goldSpot } = usePriceStore();
   const { cdpKeyName, cdpPrivateKey } = useSettingsStore();
   const goldPrice = goldSpot?.price ?? null;
@@ -35,6 +35,7 @@ export function PortfolioTracker() {
 
   const [form, setForm] = useState({ assetId: 'pax-gold', amount: '', buyPrice: '' });
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const getPriceForAssetId = useCallback(
     (assetId: string) => getCurrentPrice(assetId, prices, goldPrice),
@@ -54,9 +55,32 @@ export function PortfolioTracker() {
     if (isNaN(amount) || amount <= 0 || isNaN(buyPrice) || buyPrice <= 0) return;
     const asset = AVAILABLE_ASSETS.find((a) => a.id === form.assetId);
     if (!asset) return;
-    addEntry({ symbol: asset.symbol, name: asset.name, amount, buyPrice, source: 'manual' });
+
+    if (editingId) {
+      updateEntry(editingId, { symbol: asset.symbol, name: asset.name, amount, buyPrice });
+      setEditingId(null);
+    } else {
+      addEntry({ symbol: asset.symbol, name: asset.name, amount, buyPrice, source: 'manual' });
+    }
     setForm({ assetId: 'pax-gold', amount: '', buyPrice: '' });
     setShowForm(false);
+  };
+
+  const handleEdit = (entry: typeof entries[0]) => {
+    const asset = AVAILABLE_ASSETS.find((a) => a.symbol === entry.symbol);
+    setForm({
+      assetId: asset?.id ?? 'pax-gold',
+      amount: entry.amount.toString(),
+      buyPrice: entry.buyPrice.toString(),
+    });
+    setEditingId(entry.id);
+    setShowForm(true);
+  };
+
+  const handleCancelForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ assetId: 'pax-gold', amount: '', buyPrice: '' });
   };
 
   const totalValue = entries.reduce((sum, e) => {
@@ -122,8 +146,8 @@ export function PortfolioTracker() {
             </div>
           )}
           <button
-            onClick={() => setShowForm(!showForm)}
-            aria-label={showForm ? 'Cancel adding position' : 'Add new position'}
+            onClick={showForm ? handleCancelForm : () => setShowForm(true)}
+            aria-label={showForm ? 'Cancel' : 'Add new position'}
             style={{
               padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
@@ -145,19 +169,26 @@ export function PortfolioTracker() {
       {/* PnL Over Time Chart - only when positions exist */}
       <PnLOverTimeChart />
 
-      {/* Add Position Form */}
+      {/* Add/Edit Position Form */}
       {showForm && (
         <div style={{
           background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
+          border: `1px solid ${editingId ? 'var(--color-gold)' : 'var(--color-border)'}`,
           borderRadius: 'var(--radius-lg)',
           padding: '16px',
           marginBottom: 'var(--space-md)',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '10px',
-          alignItems: 'end',
         }}>
+          {editingId && (
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-gold)', marginBottom: '10px', fontWeight: 600 }}>
+              Editing position
+            </div>
+          )}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '10px',
+            alignItems: 'end',
+          }}>
           <div>
             <label style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', display: 'block', marginBottom: '4px' }}>Asset</label>
             <select
@@ -226,13 +257,13 @@ export function PortfolioTracker() {
           </div>
           <button
             onClick={handleAdd}
-            aria-label="Add position"
+            aria-label={editingId ? 'Save changes' : 'Add position'}
             style={{
               padding: '8px 16px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: 'var(--color-green)',
-              color: '#fff',
+              background: editingId ? 'var(--color-gold)' : 'var(--color-green)',
+              color: editingId ? '#000' : '#fff',
               cursor: 'pointer',
               fontSize: 'var(--font-base)',
               fontWeight: 700,
@@ -240,8 +271,9 @@ export function PortfolioTracker() {
               minHeight: '44px',
             }}
           >
-            Add
+            {editingId ? 'Save' : 'Add'}
           </button>
+          </div>
         </div>
       )}
 
@@ -268,11 +300,11 @@ export function PortfolioTracker() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>Gold Exposure</div>
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', cursor: 'help' }} title="Percentage of portfolio value in gold-backed assets (XAU, PAXG, XAUT)">Gold Exposure</div>
             <div style={{ fontWeight: 700, color: 'var(--color-gold)' }}>{goldPct.toFixed(1)}%</div>
           </div>
           <div>
-            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>Crypto Beta</div>
+            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', cursor: 'help' }} title="Percentage of portfolio value in non-gold crypto assets (BTC, ETH, etc.)">Crypto Beta</div>
             <div style={{ fontWeight: 700, color: 'var(--color-blue)' }}>{cryptoPct.toFixed(1)}%</div>
           </div>
         </div>
@@ -373,19 +405,36 @@ export function PortfolioTracker() {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       {!isCoinbase && (
-                        <button
-                          onClick={() => removeEntry(entry.id)}
-                          aria-label={`Remove ${entry.symbol} position`}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: 'var(--color-red)', fontSize: '1rem',
-                            minWidth: '44px', minHeight: '44px',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            borderRadius: 'var(--radius-sm)',
-                          }}
-                        >
-                          🗑
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                          <button
+                            onClick={() => handleEdit(entry)}
+                            aria-label={`Edit ${entry.symbol} position`}
+                            title="Edit position"
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--color-gold)', fontSize: '1rem',
+                              minWidth: '36px', minHeight: '36px',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              borderRadius: 'var(--radius-sm)',
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => removeEntry(entry.id)}
+                            aria-label={`Remove ${entry.symbol} position`}
+                            title="Delete position"
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--color-red)', fontSize: '1rem',
+                              minWidth: '36px', minHeight: '36px',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              borderRadius: 'var(--radius-sm)',
+                            }}
+                          >
+                            🗑
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

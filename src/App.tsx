@@ -16,7 +16,7 @@ import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
 
 function App() {
-  const { mode } = useThemeStore();
+  const { mode, toggle: toggleTheme } = useThemeStore();
   const initAuth = useAuthStore((s) => s.init);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -36,7 +36,29 @@ function App() {
   }, [mode]);
 
   // Start polling prices
-  useGoldPrices();
+  const { refetch } = useGoldPrices();
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      switch (e.key.toLowerCase()) {
+        case 'd':
+          toggleTheme();
+          break;
+        case 'r':
+          refetch();
+          break;
+        case 's':
+          setIsSettingsOpen((prev) => !prev);
+          break;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleTheme, refetch]);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', transition: 'background-color 0.2s' }}>
