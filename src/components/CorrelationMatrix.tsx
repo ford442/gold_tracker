@@ -98,6 +98,7 @@ export function CorrelationMatrix() {
           </div>
           <span style={{ marginLeft: 'auto' }}>
             Auto-updates every 60s
+            {period === '1h' && ' · 1h uses limited hourly samples (short-term estimate)'}
             {period === '30d' && ' · 30d uses 7d sparkline data (free API limit)'}
           </span>
         </div>

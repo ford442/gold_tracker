@@ -49,12 +49,24 @@ export function PriceCard({ data, goldPrice }: Props) {
         {formatPrice(data.price)}
       </div>
 
-      {/* Changes - arrows + signs for accessibility */}
-      <div style={{ display: 'flex', gap: '12px', fontSize: 'var(--font-sm)' }}>
-        <span style={{ color: isPositive24h ? 'var(--color-green)' : 'var(--color-red)' }}>
+      {/* Changes - arrows + signs with background tint */}
+      <div style={{ display: 'flex', gap: '8px', fontSize: 'var(--font-sm)' }}>
+        <span style={{
+          color: isPositive24h ? 'var(--color-green)' : 'var(--color-red)',
+          background: isPositive24h ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
+          padding: '2px 6px',
+          borderRadius: '4px',
+          fontWeight: 600,
+        }}>
           {isPositive24h ? '↑' : '↓'} 24h {formatPercent(data.change24h)}
         </span>
-        <span style={{ color: isPositive7d ? 'var(--color-green)' : 'var(--color-red)' }}>
+        <span style={{
+          color: isPositive7d ? 'var(--color-green)' : 'var(--color-red)',
+          background: isPositive7d ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
+          padding: '2px 6px',
+          borderRadius: '4px',
+          fontWeight: 600,
+        }}>
           {isPositive7d ? '↑' : '↓'} 7d {formatPercent(data.change7d)}
         </span>
       </div>

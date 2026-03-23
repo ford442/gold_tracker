@@ -7,10 +7,12 @@ interface PriceStore {
   lastUpdated: number | null;
   isLoading: boolean;
   error: string | null;
+  isMockData: boolean;
   setPrices: (prices: Record<string, PriceData>) => void;
   setGoldSpot: (spot: GoldSpot) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setIsMockData: (isMock: boolean) => void;
 }
 
 export const usePriceStore = create<PriceStore>((set) => ({
@@ -19,8 +21,10 @@ export const usePriceStore = create<PriceStore>((set) => ({
   lastUpdated: null,
   isLoading: false,
   error: null,
+  isMockData: false,
   setPrices: (prices) => set({ prices, lastUpdated: Date.now(), isLoading: false }),
   setGoldSpot: (goldSpot) => set({ goldSpot }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),
+  setIsMockData: (isMockData) => set({ isMockData }),
 }));

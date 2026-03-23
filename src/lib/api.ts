@@ -11,7 +11,7 @@ function mockSparkline(basePrice: number, points = 24): SparklinePoint[] {
   }));
 }
 
-export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string, PriceData>> {
+export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string, PriceData> & { __mock?: boolean }> {
   const ids = 'pax-gold,tether-gold,bitcoin,ethereum,bitcoin-cash';
   const headers: Record<string, string> = {};
   if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
@@ -50,7 +50,8 @@ export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string,
     return result;
   } catch (err) {
     console.warn('CoinGecko fetch failed, using mock data:', err);
-    return getMockCryptoPrices();
+    const mock = getMockCryptoPrices();
+    return Object.assign(mock, { __mock: true });
   }
 }
 
