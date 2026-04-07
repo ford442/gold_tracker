@@ -27,27 +27,23 @@ export function PriceCard({ data, goldPrice }: Props) {
 
   return (
     <div 
-      className="card-hover"
+      className="card-hover glass-card"
       style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
         padding: '18px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        boxShadow: 'var(--shadow-sm)',
         cursor: 'default',
       }} 
       role="article" 
       aria-label={`${data.name} price card`}
     >
       {/* Header with icon */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span 
             style={{ 
-              fontSize: '1.5rem',
+              fontSize: '1.3rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -55,6 +51,7 @@ export function PriceCard({ data, goldPrice }: Props) {
               height: '36px',
               background: 'var(--color-surface2)',
               borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
             }}
             aria-hidden="true"
           >
@@ -70,7 +67,7 @@ export function PriceCard({ data, goldPrice }: Props) {
               {data.symbol}
             </span>
             <div style={{ 
-              fontSize: 'var(--font-xs)', 
+              fontSize: 'var(--font-xxs)', 
               color: 'var(--color-muted)', 
               marginTop: '2px',
               fontWeight: 500
@@ -86,50 +83,32 @@ export function PriceCard({ data, goldPrice }: Props) {
         )}
       </div>
 
-      {/* Price with larger font */}
+      {/* Price — bold and dominant */}
       <div style={{ 
-        fontSize: '1.6rem', 
-        fontWeight: 700, 
+        fontSize: '1.55rem', 
+        fontWeight: 800, 
         color: 'var(--color-text)', 
         fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.02em'
+        letterSpacing: '-0.03em',
+        position: 'relative',
+        zIndex: 2,
       }}>
         {formatPrice(data.price)}
       </div>
 
-      {/* Changes - arrows + signs with background tint */}
-      <div style={{ display: 'flex', gap: '8px', fontSize: 'var(--font-sm)' }}>
-        <span style={{
-          color: isPositive24h ? 'var(--color-green)' : 'var(--color-red)',
-          background: isPositive24h ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
-          padding: '4px 8px',
-          borderRadius: 'var(--radius-sm)',
-          fontWeight: 600,
-          fontSize: 'var(--font-xs)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}>
+      {/* Change chips */}
+      <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 2 }}>
+        <span className={`change-chip ${isPositive24h ? 'change-chip-green' : 'change-chip-red'}`}>
           {isPositive24h ? '↑' : '↓'} 24h {formatPercent(data.change24h)}
         </span>
-        <span style={{
-          color: isPositive7d ? 'var(--color-green)' : 'var(--color-red)',
-          background: isPositive7d ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
-          padding: '4px 8px',
-          borderRadius: 'var(--radius-sm)',
-          fontWeight: 600,
-          fontSize: 'var(--font-xs)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}>
+        <span className={`change-chip ${isPositive7d ? 'change-chip-green' : 'change-chip-red'}`}>
           {isPositive7d ? '↑' : '↓'} 7d {formatPercent(data.change7d)}
         </span>
       </div>
 
-      {/* Sparkline with gradient fill */}
+      {/* Sparkline */}
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%', marginTop: '4px' }} aria-hidden="true">
+        <div style={{ height: '48px', width: '100%', marginTop: '2px', position: 'relative', zIndex: 2 }} aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData}>
               <defs>
@@ -137,7 +116,7 @@ export function PriceCard({ data, goldPrice }: Props) {
                   <stop 
                     offset="5%" 
                     stopColor={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'} 
-                    stopOpacity={0.3} 
+                    stopOpacity={0.25} 
                   />
                   <stop 
                     offset="95%" 
@@ -150,7 +129,7 @@ export function PriceCard({ data, goldPrice }: Props) {
                 type="monotone"
                 dataKey="price"
                 stroke={isPositive24h ? 'var(--color-green)' : 'var(--color-red)'}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 fill={`url(#gradient-${data.id})`}
                 isAnimationActive={false}
               />

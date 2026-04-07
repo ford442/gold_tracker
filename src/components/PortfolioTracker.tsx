@@ -126,14 +126,8 @@ export function PortfolioTracker() {
         flexWrap: 'wrap', 
         gap: '12px' 
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-xl)', 
-          fontWeight: 700, 
-          color: 'var(--color-text)',
-          letterSpacing: '-0.02em'
-        }}>
-          💼 Portfolio Tracker
+        <h2 className="section-heading">
+          <span className="heading-icon">💼</span> Portfolio Tracker
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Coinbase Sync Controls */}
@@ -326,10 +320,7 @@ export function PortfolioTracker() {
 
       {/* Summary bar */}
       {entries.length > 0 && (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: '18px 20px',
           marginBottom: 'var(--space-lg)',
           display: 'grid',
@@ -495,13 +486,7 @@ export function PortfolioTracker() {
           </div>
         </div>
       ) : (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}>
+        <div className="glass-card">
           <table className="table-zebra" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--color-border)' }}>

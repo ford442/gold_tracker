@@ -20,24 +20,26 @@ export function DarkModeToggle() {
       role="switch"
       aria-checked={mode === 'light'}
       style={{
-        background: 'var(--color-surface2)',
+        background: 'rgba(255,255,255,0.03)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
         padding: '6px 12px',
         cursor: 'pointer',
         color: 'var(--color-text)',
-        fontSize: '1.1rem',
+        fontSize: '1rem',
         lineHeight: 1,
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
         minHeight: '44px',
         minWidth: '44px',
-        transition: 'background 0.15s, border-color 0.15s',
+        transition: 'all 0.18s ease',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
       }}
     >
       {mode === 'dark' ? '☀️' : '🌙'}
-      <span style={{ fontSize: 'var(--font-xs)', opacity: 0.7 }}>
+      <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', fontWeight: 500 }}>
         {mode === 'dark' ? 'Light' : 'Dark'}
       </span>
     </button>

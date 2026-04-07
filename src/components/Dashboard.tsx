@@ -54,7 +54,7 @@ export function Dashboard() {
   }, [isMockData, error, lastUpdated, now]);
 
   return (
-    <section aria-label="Live Prices Dashboard" style={{ marginBottom: 'var(--space-2xl)' }}>
+    <section aria-label="Live Prices Dashboard" style={{ marginBottom: 'var(--space-xl)' }}>
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -63,37 +63,36 @@ export function Dashboard() {
         flexWrap: 'wrap',
         gap: '12px'
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-xl)', 
-          fontWeight: 700, 
-          color: 'var(--color-text)',
-          letterSpacing: '-0.02em'
-        }}>
-          📊 Live Prices
+        <h2 className="section-heading">
+          <span className="heading-icon">📊</span>
+          Live Prices
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Enhanced Live indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Status pill */}
           {!isLoading && hasData && (
             <span style={{
               fontSize: 'var(--font-xs)',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 10px',
+              padding: '4px 12px',
               borderRadius: '999px',
               background: statusInfo.bg,
               color: statusInfo.color,
               fontWeight: 600,
+              border: `1px solid ${statusInfo.color}20`,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}>
               <span 
                 className={statusInfo.dotClass}
                 style={{
                   display: 'inline-block', 
-                  width: '8px', 
-                  height: '8px', 
+                  width: '6px', 
+                  height: '6px', 
                   borderRadius: '50%',
                   background: 'currentColor',
+                  boxShadow: statusInfo.dotClass ? `0 0 6px ${statusInfo.color}` : 'none',
                 }} 
                 aria-hidden="true" 
               />
@@ -101,45 +100,41 @@ export function Dashboard() {
             </span>
           )}
           
-          {/* Last updated timestamp */}
+          {/* Timestamp */}
           {lastUpdated && !isLoading && (
             <span style={{ 
               fontSize: 'var(--font-xs)', 
               color: 'var(--color-muted)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
-              gap: '2px'
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 500,
+              opacity: 0.8,
             }}>
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                Updated: {new Date(lastUpdated).toLocaleTimeString()}
-              </span>
+              {new Date(lastUpdated).toLocaleTimeString()}
             </span>
           )}
           
-          {/* Countdown with progress bar */}
+          {/* Countdown */}
           {lastUpdated && !isLoading && (
             <div style={{ 
               display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'flex-end',
-              gap: '4px',
-              minWidth: '80px'
+              alignItems: 'center',
+              gap: '8px',
             }}>
-              <span style={{ 
-                fontSize: 'var(--font-xs)', 
-                color: 'var(--color-muted)', 
-                fontVariantNumeric: 'tabular-nums',
-                fontWeight: 500
-              }}>
-                {countdown}s
-              </span>
-              <div className="progress-bar" style={{ width: '60px' }}>
+              <div className="progress-bar" style={{ width: '48px' }}>
                 <div 
                   className="progress-bar-fill" 
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
+              <span style={{ 
+                fontSize: '0.65rem', 
+                color: 'var(--color-muted)', 
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 500,
+                opacity: 0.7,
+              }}>
+                {countdown}s
+              </span>
             </div>
           )}
           
@@ -155,8 +150,8 @@ export function Dashboard() {
               <span 
                 style={{ 
                   display: 'inline-block', 
-                  width: '8px', 
-                  height: '8px', 
+                  width: '6px', 
+                  height: '6px', 
                   borderRadius: '50%', 
                   background: 'var(--color-gold)',
                   animation: 'pulse 1s infinite' 
@@ -169,10 +164,11 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div style={{
+      {/* Price cards grid with reflection zone */}
+      <div className="reflection-zone" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-        gap: 'var(--space-lg)',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+        gap: 'var(--space-md)',
       }}>
         {/* Loading skeletons */}
         {!hasData && isLoading && (
@@ -190,19 +186,16 @@ export function Dashboard() {
           ) : null
         )}
         {!hasData && !isLoading && (
-          <div style={{
+          <div className="glass-card" style={{
             gridColumn: '1/-1', 
             textAlign: 'center', 
             padding: 'var(--space-2xl)',
             color: 'var(--color-muted)', 
             fontSize: 'var(--font-base)',
-            background: 'var(--color-surface)', 
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--color-border)',
           }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>⚠️</div>
+            <div style={{ fontSize: '2rem', marginBottom: '12px', opacity: 0.7 }}>⚠️</div>
             <div style={{ fontWeight: 500 }}>No price data available</div>
-            <div style={{ fontSize: 'var(--font-sm)', marginTop: '8px' }}>
+            <div style={{ fontSize: 'var(--font-sm)', marginTop: '8px', opacity: 0.7 }}>
               Check your API keys or wait for the next refresh
             </div>
           </div>

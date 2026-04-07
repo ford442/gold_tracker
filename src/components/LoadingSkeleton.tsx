@@ -22,10 +22,7 @@ export function Skeleton({ width = '100%', height = '16px', borderRadius, style 
 
 export function ChartSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading chart" style={{
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)',
+    <div aria-busy="true" aria-label="Loading chart" className="glass-card" style={{
       padding: 'var(--space-lg)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -44,10 +41,7 @@ export function ChartSkeleton() {
 
 export function TableSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <div aria-busy="true" aria-label="Loading table" style={{
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)',
+    <div aria-busy="true" aria-label="Loading table" className="glass-card" style={{
       padding: '12px',
     }}>
       <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', padding: '8px' }}>
@@ -68,10 +62,7 @@ export function TableSkeleton({ rows = 4 }: { rows?: number }) {
 
 export function CardSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading card" style={{
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)',
+    <div aria-busy="true" aria-label="Loading card" className="glass-card" style={{
       padding: '16px',
       display: 'flex',
       flexDirection: 'column',

@@ -179,8 +179,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div 
-        className="w-full max-w-lg rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto"
-        style={{ background: 'var(--color-surface)' }}
+        className="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        style={{ padding: '24px' }}
       >
         <div className="flex items-center justify-between mb-6">
           <h2 

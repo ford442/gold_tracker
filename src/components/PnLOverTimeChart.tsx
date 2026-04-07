@@ -103,13 +103,9 @@ export function PnLOverTimeChart() {
   const isMobile = containerWidth > 0 && containerWidth < 640;
 
   return (
-    <div ref={containerRef} style={{
-      background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)',
+    <div ref={containerRef} className="glass-card" style={{
       padding: 'var(--space-lg)',
       marginBottom: 'var(--space-md)',
-      boxShadow: 'var(--shadow-sm)',
     }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
