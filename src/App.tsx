@@ -20,12 +20,10 @@ function App() {
   const initAuth = useAuthStore((s) => s.init);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Initialize auth on mount
   useEffect(() => {
     initAuth();
   }, [initAuth]);
 
-  // Apply theme class on mount
   useEffect(() => {
     const root = document.documentElement;
     if (mode === 'light') {
@@ -35,7 +33,6 @@ function App() {
     }
   }, [mode]);
 
-  // Start polling prices
   const { refetch } = useGoldPrices();
 
   // Keyboard shortcuts
@@ -61,7 +58,11 @@ function App() {
   }, [toggleTheme, refetch]);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', transition: 'background-color 0.2s' }}>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'var(--color-bg)', 
+      transition: 'background-color 0.2s ease' 
+    }}>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {/* Header with gold gradient accent */}
@@ -69,7 +70,7 @@ function App() {
         background: 'var(--color-surface)',
         backgroundImage: 'var(--gradient-gold)',
         borderBottom: '1px solid var(--color-border)',
-        padding: '12px 20px',
+        padding: '14px 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -78,25 +79,52 @@ function App() {
         zIndex: 100,
         boxShadow: 'var(--shadow-md)',
       }} role="banner">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.4rem' }} role="img" aria-label="Gold medal">🥇</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '1.6rem' }} role="img" aria-label="Gold medal">🥇</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-gold)', letterSpacing: '-0.02em' }}>
+            <div style={{ 
+              fontWeight: 800, 
+              fontSize: '1.15rem', 
+              color: 'var(--color-gold)', 
+              letterSpacing: '-0.02em' 
+            }}>
               GoldTrackr
             </div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--color-muted)', letterSpacing: '0.05em', marginTop: '-2px' }}>
-              REAL-TIME GOLD &amp; CRYPTO
+            <div style={{ 
+              fontSize: '0.7rem', 
+              color: 'var(--color-muted)', 
+              letterSpacing: '0.08em', 
+              marginTop: '-2px',
+              fontWeight: 600
+            }}>
+              REAL-TIME GOLD & CRYPTO
             </div>
           </div>
         </div>
-        <nav className="flex items-center gap-4" aria-label="Main navigation">
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '16px' }} aria-label="Main navigation">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
               color: 'var(--color-muted)',
-              minHeight: '44px',
-              minWidth: '44px',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-gold)';
+              e.currentTarget.style.color = 'var(--color-text)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.color = 'var(--color-muted)';
             }}
             aria-label="Open settings"
           >
@@ -106,32 +134,51 @@ function App() {
         </nav>
       </header>
 
-      {/* Main content */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 max-w-[1400px] mx-auto pb-20" role="main">
+      {/* Main content with improved spacing */}
+      <main 
+        className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 max-w-[1400px] mx-auto pb-20" 
+        role="main"
+        style={{ paddingTop: '32px' }}
+      >
         {/* Dashboard - full width */}
         <div className="col-span-1 lg:col-span-12">
           <Dashboard />
         </div>
+
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
 
         {/* Trade Suggestions - full width (Priority) */}
         <div className="col-span-1 lg:col-span-12">
           <TradeSuggestionsPanel />
         </div>
 
-        {/* Trade Replay & Projections - full width (NEW) */}
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
+        {/* Trade Replay & Projections - full width */}
         <div className="col-span-1 lg:col-span-12">
           <TradeReplayChart />
         </div>
+
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
 
         {/* Performance Comparison Chart - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PerformanceComparisonChart />
         </div>
 
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
         {/* Global Arbitrage Monitor - full width */}
         <div className="col-span-1 lg:col-span-12">
           <GlobalArbitrageMonitor />
         </div>
+
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
 
         {/* Correlation + Alerts */}
         <div className="col-span-1 lg:col-span-7">
@@ -141,15 +188,24 @@ function App() {
           <ArbitrageAlerts />
         </div>
 
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
         {/* Portfolio - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PortfolioTracker />
         </div>
 
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
         {/* Strategy Engine & Back-tester */}
         <div className="col-span-1 lg:col-span-12">
           <StrategyDashboard />
         </div>
+
+        {/* Section divider */}
+        <div className="col-span-1 lg:col-span-12 section-divider" />
 
         {/* News feed */}
         <div className="col-span-1 lg:col-span-12">
@@ -160,12 +216,18 @@ function App() {
       {/* Footer */}
       <footer style={{
         borderTop: '1px solid var(--color-border)',
-        padding: '24px 20px',
+        padding: '32px 24px',
         textAlign: 'center',
         color: 'var(--color-muted)',
-        fontSize: '0.75rem',
+        fontSize: '0.8rem',
+        background: 'var(--color-surface)'
       }} role="contentinfo">
-        Data: CoinGecko · MetalPrice API · Kitco RSS · Prices auto-refresh every 60s · Not financial advice
+        <div style={{ marginBottom: '8px' }}>
+          Data: CoinGecko · MetalPrice API · Kitco RSS · Prices auto-refresh every 60s
+        </div>
+        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+          Not financial advice · Keyboard shortcuts: D (dark mode), R (refresh), S (settings)
+        </div>
       </footer>
     </div>
   );

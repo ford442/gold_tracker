@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -14,9 +14,86 @@ import {
 import { useStrategyStore } from '../store/strategyStore';
 import { formatPrice, formatPercent } from '../lib/utils';
 
+// Tooltip component
+function TooltipIcon({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  
+  return (
+    <span 
+      style={{ 
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '16px',
+        height: '16px',
+        borderRadius: '50%',
+        background: 'var(--color-surface2)',
+        color: 'var(--color-muted)',
+        fontSize: '0.7rem',
+        cursor: 'help',
+        marginLeft: '6px',
+        position: 'relative',
+        border: '1px solid var(--color-border)'
+      }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      aria-label="More information"
+    >
+      ?
+      {show && (
+        <span style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--color-surface2)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 12px',
+          fontSize: '0.75rem',
+          color: 'var(--color-text)',
+          whiteSpace: 'nowrap',
+          zIndex: 100,
+          boxShadow: 'var(--shadow-md)',
+          marginBottom: '6px',
+          minWidth: '200px',
+          lineHeight: 1.4
+        }}>
+          {text}
+          <span style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            border: '6px solid transparent',
+            borderTopColor: 'var(--color-border)'
+          }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+// Validation indicator
+function ValidationIndicator({ valid, message }: { valid: boolean; message?: string }) {
+  return (
+    <span 
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        marginLeft: '6px',
+        fontSize: '0.75rem',
+        color: valid ? 'var(--color-green)' : 'var(--color-red)'
+      }}
+      title={message}
+    >
+      {valid ? '✓' : '✗'}
+    </span>
+  );
+}
+
 // ─── Mock tick generator ──────────────────────────────────────────────────────
 
-/** Box-Muller transform → standard normal sample */
 function randn(): number {
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
@@ -31,17 +108,8 @@ const BASE_PRICES: Record<string, number> = {
   'ethereum':    3850,
 };
 
-const TICK_COUNT = 720; // 30 days × 24 h
+const TICK_COUNT = 720;
 
-/**
- * Generates 720 hourly ticks of mock price data suitable for back-testing.
- *
- * Arbitrage mode:  PAXG follows GBM; XAUT tracks PAXG closely with
- *                  occasional divergence events (~8% of ticks).
- *
- * Mean-Reversion:  Target asset follows an Ornstein-Uhlenbeck process
- *                  (θ=0.03, σ=0.8%/hr) that naturally mean-reverts.
- */
 function generateMockTicks(
   strategyType: 'arbitrage' | 'mean-reversion',
   mrAsset: string,
@@ -55,11 +123,7 @@ function generateMockTicks(
 
     for (let i = 0; i < TICK_COUNT; i++) {
       const timestamp = now - (TICK_COUNT - i) * 3_600_000;
-
-      // PAXG: GBM  μ=+0.01%/hr, σ=0.3%/hr
       paxg *= Math.exp(0.0001 + 0.003 * randn());
-
-      // XAUT: follows PAXG with tight correlation; 8% chance of spread event
       const isSpreadEvent = Math.random() < 0.08;
       const noise = isSpreadEvent ? randn() * 0.012 : randn() * 0.0015;
       xaut = paxg * (1 + noise);
@@ -75,15 +139,14 @@ function generateMockTicks(
   } else {
     const asset = mrAsset;
     const mu = BASE_PRICES[asset] ?? 10_000;
-    const theta = 0.03;            // mean-reversion speed
-    const sigma = mu * 0.008;      // 0.8 %/hr vol
+    const theta = 0.03;
+    const sigma = mu * 0.008;
     let price = mu;
 
     for (let i = 0; i < TICK_COUNT; i++) {
       const timestamp = now - (TICK_COUNT - i) * 3_600_000;
-      // Ornstein-Uhlenbeck step
       price = price + theta * (mu - price) + sigma * randn();
-      price = Math.max(price, mu * 0.5); // floor at 50% of base
+      price = Math.max(price, mu * 0.5);
 
       ticks.push({
         timestamp,
@@ -95,8 +158,6 @@ function generateMockTicks(
   return ticks;
 }
 
-// ─── Tooltip content style (reused) ──────────────────────────────────────────
-
 const tooltipContentStyle: React.CSSProperties = {
   backgroundColor: 'var(--color-surface2)',
   border: '1px solid var(--color-border)',
@@ -104,8 +165,6 @@ const tooltipContentStyle: React.CSSProperties = {
   color: 'var(--color-text)',
   fontSize: '0.75rem',
 };
-
-// ─── Labelled stat box ────────────────────────────────────────────────────────
 
 interface StatBoxProps {
   label: string;
@@ -120,15 +179,26 @@ function StatBox({ label, value, color, subtext }: StatBoxProps) {
       background: 'var(--color-surface2)',
       border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)',
-      padding: '12px 16px',
+      padding: '14px 16px',
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
+      gap: '6px',
     }}>
-      <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      <span style={{ 
+        fontSize: 'var(--font-xs)', 
+        color: 'var(--color-muted)', 
+        textTransform: 'uppercase', 
+        letterSpacing: '0.06em',
+        fontWeight: 600
+      }}>
         {label}
       </span>
-      <span style={{ fontSize: 'var(--font-lg)', fontWeight: 700, color: color ?? 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ 
+        fontSize: 'var(--font-lg)', 
+        fontWeight: 700, 
+        color: color ?? 'var(--color-text)', 
+        fontVariantNumeric: 'tabular-nums' 
+      }}>
         {value}
       </span>
       {subtext && (
@@ -138,56 +208,89 @@ function StatBox({ label, value, color, subtext }: StatBoxProps) {
   );
 }
 
-// ─── Input helpers ────────────────────────────────────────────────────────────
-
 const inputStyle: React.CSSProperties = {
   background: 'var(--color-surface2)',
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius-sm)',
   color: 'var(--color-text)',
   fontSize: 'var(--font-sm)',
-  padding: '6px 10px',
+  padding: '8px 12px',
   width: '100%',
   outline: 'none',
+  transition: 'border-color 0.15s ease'
 };
 
 const labelStyle: React.CSSProperties = {
   fontSize: 'var(--font-xs)',
   color: 'var(--color-muted)',
-  marginBottom: '4px',
-  display: 'block',
+  marginBottom: '6px',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
+  fontWeight: 600,
+  display: 'flex',
+  alignItems: 'center'
 };
 
-function Field({
-  label, value, onChange, min, max, step, type = 'number',
-}: {
+interface FieldProps {
   label: string;
+  labelTooltip?: string;
   value: string | number;
   onChange: (v: string) => void;
   min?: number;
   max?: number;
   step?: number;
   type?: string;
-}) {
+  validate?: (v: number) => boolean;
+  validationMessage?: string;
+  suffix?: string;
+}
+
+function Field({
+  label, labelTooltip, value, onChange, min, max, step, type = 'number',
+  validate, validationMessage, suffix
+}: FieldProps) {
+  const numValue = parseFloat(value as string);
+  const isValid = !isNaN(numValue) && (!validate || validate(numValue));
+  
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={labelStyle}>{label}</label>
-      <input
-        type={type}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(e.target.value)}
-        style={inputStyle}
-      />
+      <label style={labelStyle}>
+        {label}
+        {labelTooltip && <TooltipIcon text={labelTooltip} />}
+      </label>
+      <div style={{ position: 'relative' }}>
+        <input
+          type={type}
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            ...inputStyle,
+            borderColor: value && !isValid ? 'var(--color-red)' : 'var(--color-border)',
+            paddingRight: suffix ? '30px' : '12px'
+          }}
+        />
+        {suffix && (
+          <span style={{
+            position: 'absolute',
+            right: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--color-muted)',
+            fontSize: '0.85rem'
+          }}>
+            {suffix}
+          </span>
+        )}
+        {value && validate && (
+          <ValidationIndicator valid={isValid} message={validationMessage} />
+        )}
+      </div>
     </div>
   );
 }
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function StrategyDashboard() {
   const {
@@ -199,12 +302,10 @@ export function StrategyDashboard() {
     isRunning, setIsRunning,
   } = useStrategyStore();
 
-  // ── Run backtest ────────────────────────────────────────────────────────
   const handleRunBacktest = useCallback(async () => {
     if (isRunning) return;
     setIsRunning(true);
 
-    // Yield to React so spinner renders before heavy JS
     await new Promise<void>((r) => setTimeout(r, 60));
 
     let result: BacktestResult;
@@ -245,7 +346,6 @@ export function StrategyDashboard() {
     initialBalance, setLastResult, setIsRunning,
   ]);
 
-  // ── Derived display values ─────────────────────────────────────────────
   const r = lastResult;
   const returnColor = !r ? 'var(--color-text)'
     : r.totalReturn >= 0 ? 'var(--color-green)' : 'var(--color-red)';
@@ -253,7 +353,6 @@ export function StrategyDashboard() {
     ? ((r.winningTrades / r.totalTrades) * 100).toFixed(1) + '%'
     : '—';
 
-  // Downsample equity curve to ≤200 points for smooth Recharts rendering
   const equityCurveDisplay = r
     ? (() => {
         const curve = r.equityCurve;
@@ -263,12 +362,10 @@ export function StrategyDashboard() {
       })()
     : [];
 
-  // Show only the last 100 trades, newest-first
   const tradeLogDisplay = r
     ? [...r.trades].reverse().slice(0, 100)
     : [];
 
-  // ── MR asset options ───────────────────────────────────────────────────
   const mrAssetOptions = [
     { id: 'bitcoin',     label: 'BTC — Bitcoin' },
     { id: 'ethereum',    label: 'ETH — Ethereum' },
@@ -276,42 +373,73 @@ export function StrategyDashboard() {
     { id: 'tether-gold', label: 'XAUT — Tether Gold' },
   ];
 
+  // Calculate estimated trade frequency
+  const estimatedTradesPerDay = strategyType === 'arbitrage' 
+    ? Math.round((0.08 * 24 * (0.25 / arbSpreadThreshold)) * 10) / 10
+    : Math.round((24 / mrWindowSize) * 10) / 10;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)', marginBottom: 'var(--space-2xl)' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-lg)',
+        padding: 'var(--space-xl)',
         boxShadow: 'var(--shadow-sm)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px',
+        gap: '16px',
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>⚙️</span>
-            <h2 style={{ margin: 0, fontSize: 'var(--font-xl)', fontWeight: 800, color: 'var(--color-text)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '1.5rem' }}>⚙️</span>
+            <h2 style={{ 
+              margin: 0, 
+              fontSize: 'var(--font-xl)', 
+              fontWeight: 800, 
+              color: 'var(--color-text)',
+              letterSpacing: '-0.02em'
+            }}>
               Strategy Engine
             </h2>
-            <span className="badge badge-accent" style={{ fontSize: 'var(--font-xs)', letterSpacing: '0.08em' }}>
+            <span style={{
+              fontSize: 'var(--font-xs)',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              background: 'var(--color-accent-dim)',
+              color: 'var(--color-accent)',
+              fontWeight: 700,
+              letterSpacing: '0.08em'
+            }}>
               BACKTEST MODE
             </span>
           </div>
-          <p style={{ margin: '4px 0 0 0', fontSize: 'var(--font-sm)', color: 'var(--color-muted)' }}>
+          <p style={{ 
+            margin: '6px 0 0 0', 
+            fontSize: 'var(--font-sm)', 
+            color: 'var(--color-muted)',
+            maxWidth: '600px'
+          }}>
             Simulate algorithmic strategies over 30 days of synthetic price data — no real funds at risk.
           </p>
         </div>
         {r && (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <span className={`badge ${r.totalReturn >= 0 ? 'badge-green' : 'badge-red'}`}>
               {r.totalReturn >= 0 ? '▲' : '▼'} {formatPercent(r.totalReturn)} return
             </span>
-            <span className="badge" style={{ background: 'var(--color-accent-dim)', color: 'var(--color-accent)' }}>
+            <span style={{
+              fontSize: 'var(--font-xs)',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              background: 'var(--color-accent-dim)',
+              color: 'var(--color-accent)',
+              fontWeight: 600
+            }}>
               {r.totalTrades} trades
             </span>
           </div>
@@ -323,31 +451,37 @@ export function StrategyDashboard() {
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-lg)',
+        padding: 'var(--space-xl)',
         boxShadow: 'var(--shadow-sm)',
       }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--color-text)' }}>
+        <h3 style={{ 
+          margin: '0 0 20px 0', 
+          fontSize: 'var(--font-lg)', 
+          fontWeight: 700, 
+          color: 'var(--color-text)',
+          letterSpacing: '-0.01em'
+        }}>
           🔧 Strategy Configurator
         </h3>
 
         {/* Strategy type pills */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
           {(['arbitrage', 'mean-reversion'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setStrategyType(t)}
               style={{
-                padding: '7px 18px',
+                padding: '10px 20px',
                 borderRadius: 'var(--radius-full)',
                 border: strategyType === t
                   ? '2px solid var(--color-accent)'
                   : '2px solid var(--color-border)',
                 background: strategyType === t ? 'var(--color-accent-dim)' : 'transparent',
                 color: strategyType === t ? 'var(--color-accent)' : 'var(--color-muted)',
-                fontWeight: strategyType === t ? 700 : 400,
+                fontWeight: strategyType === t ? 700 : 500,
                 fontSize: 'var(--font-sm)',
                 cursor: 'pointer',
-                transition: 'all 0.15s',
+                transition: 'all 0.15s ease',
               }}
             >
               {t === 'arbitrage' ? '⚡ Arbitrage' : '📈 Mean Reversion'}
@@ -355,50 +489,75 @@ export function StrategyDashboard() {
           ))}
         </div>
 
-        <div style={{ height: '1px', background: 'var(--color-border)', marginBottom: '20px' }} />
+        <div style={{ height: '1px', background: 'var(--color-border)', marginBottom: '24px' }} />
 
         {/* ── Arbitrage params ──────────────────────────────────────────── */}
         {strategyType === 'arbitrage' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <Field
-                label="Spread Threshold (%)"
+                label="Spread Threshold"
+                labelTooltip="Minimum price difference (%) between PAXG and XAUT to trigger a trade. Lower values = more frequent trades but smaller profits per trade."
                 value={arbSpreadThreshold}
                 min={0.05} max={5} step={0.05}
                 onChange={(v) => setArbConfig({ arbSpreadThreshold: parseFloat(v) || 0.25 })}
+                validate={(v) => v >= 0.05 && v <= 5}
+                validationMessage="Must be between 0.05% and 5%"
+                suffix="%"
               />
               <Field
-                label="Trade Size (USD)"
+                label="Trade Size"
+                labelTooltip="USD amount to trade per arbitrage opportunity. Larger sizes = higher potential profit but more capital at risk."
                 value={arbTradeSize}
                 min={50} max={50000} step={50}
                 onChange={(v) => setArbConfig({ arbTradeSize: parseFloat(v) || 500 })}
+                validate={(v) => v >= 50 && v <= 50000}
+                validationMessage="Must be between $50 and $50,000"
+                suffix="$"
               />
             </div>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '8px 12px',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '12px 16px',
               background: 'var(--color-gold-dim)',
-              borderRadius: 'var(--radius-sm)',
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
             }}>
-              <span style={{ fontSize: '0.8rem' }}>🔗</span>
+              <span style={{ fontSize: '1rem' }}>🔗</span>
               <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-gold)' }}>
                 Assets locked to <strong>PAXG ↔ XAUT</strong> — the two most liquid gold-backed tokens on-chain.
                 Spread events fire at ≈8% of ticks in the synthetic data.
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>
-              Entry: buy cheaper asset when spread &gt; threshold. Exit: sell when spread ≤ threshold / 2.
-            </p>
+            <div style={{
+              display: 'flex',
+              gap: '20px',
+              fontSize: 'var(--font-xs)',
+              color: 'var(--color-muted)',
+              flexWrap: 'wrap'
+            }}>
+              <span>
+                <strong style={{ color: 'var(--color-text)' }}>Entry:</strong> Buy cheaper asset when spread &gt; threshold
+              </span>
+              <span>
+                <strong style={{ color: 'var(--color-text)' }}>Exit:</strong> Sell when spread ≤ threshold / 2
+              </span>
+              <span style={{ marginLeft: 'auto' }}>
+                <strong style={{ color: 'var(--color-accent)' }}>Est. frequency:</strong> ~{estimatedTradesPerDay} trades/day
+              </span>
+            </div>
           </div>
         )}
 
         {/* ── Mean-Reversion params ─────────────────────────────────────── */}
         {strategyType === 'mean-reversion' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={labelStyle}>Asset</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <label style={labelStyle}>
+                  Asset
+                  <TooltipIcon text="The cryptocurrency or token to trade using mean-reversion strategy" />
+                </label>
                 <select
                   value={mrAsset}
                   onChange={(e) => setMrConfig({ mrAsset: e.target.value })}
@@ -410,56 +569,88 @@ export function StrategyDashboard() {
                 </select>
               </div>
               <Field
-                label="SMA Window (hours)"
+                label="SMA Window"
+                labelTooltip="Number of hours to calculate the Simple Moving Average. Shorter windows = more responsive but more false signals."
                 value={mrWindowSize}
                 min={4} max={168} step={1}
                 onChange={(v) => setMrConfig({ mrWindowSize: parseInt(v) || 24 })}
+                validate={(v) => v >= 4 && v <= 168}
+                validationMessage="Must be between 4 and 168 hours"
+                suffix="hrs"
               />
             </div>
-            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <Field
-                label="Buy Below SMA (%)"
+                label="Buy Below SMA"
+                labelTooltip="Percentage below SMA to trigger a buy signal. Higher values = fewer but deeper discount entries."
                 value={mrBuyThreshold}
                 min={0.5} max={20} step={0.1}
                 onChange={(v) => setMrConfig({ mrBuyThreshold: parseFloat(v) || 2.0 })}
+                validate={(v) => v >= 0.5 && v <= 20}
+                validationMessage="Must be between 0.5% and 20%"
+                suffix="%"
               />
               <Field
-                label="Sell Above SMA (%)"
+                label="Sell Above SMA"
+                labelTooltip="Percentage above SMA to trigger a sell signal. Should typically be lower than buy threshold for profit margin."
                 value={mrSellThreshold}
                 min={0.5} max={20} step={0.1}
                 onChange={(v) => setMrConfig({ mrSellThreshold: parseFloat(v) || 1.5 })}
+                validate={(v) => v >= 0.5 && v <= 20}
+                validationMessage="Must be between 0.5% and 20%"
+                suffix="%"
               />
               <Field
-                label="Stop-Loss (%)"
+                label="Stop-Loss"
+                labelTooltip="Maximum loss percentage before exiting position to limit downside. Essential risk management parameter."
                 value={mrStopLoss}
                 min={1} max={30} step={0.5}
                 onChange={(v) => setMrConfig({ mrStopLoss: parseFloat(v) || 5.0 })}
+                validate={(v) => v >= 1 && v <= 30}
+                validationMessage="Must be between 1% and 30%"
+                suffix="%"
               />
             </div>
-            <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <Field
-                label="Trade Size (USD)"
+                label="Trade Size"
+                labelTooltip="USD amount per trade. This is the maximum capital allocated to each position."
                 value={mrTradeSize}
                 min={50} max={50000} step={50}
                 onChange={(v) => setMrConfig({ mrTradeSize: parseFloat(v) || 1000 })}
+                validate={(v) => v >= 50 && v <= 50000}
+                validationMessage="Must be between $50 and $50,000"
+                suffix="$"
               />
             </div>
-            <p style={{ margin: 0, fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>
+            <p style={{ 
+              margin: 0, 
+              fontSize: 'var(--font-xs)', 
+              color: 'var(--color-muted)',
+              lineHeight: 1.5
+            }}>
               Prices generated with an Ornstein-Uhlenbeck process (θ=0.03, σ=0.8%/hr) for realistic mean-reverting behaviour.
+              <span style={{ marginLeft: '16px', color: 'var(--color-accent)' }}>
+                Est. frequency: ~{estimatedTradesPerDay} trades/day
+              </span>
             </p>
           </div>
         )}
 
-        <div style={{ height: '1px', background: 'var(--color-border)', margin: '20px 0' }} />
+        <div style={{ height: '1px', background: 'var(--color-border)', margin: '24px 0' }} />
 
         {/* Common: initial balance */}
-        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '20px' }}>
-          <div style={{ flex: 1, minWidth: 160, maxWidth: 240 }}>
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '24px' }}>
+          <div style={{ flex: 1, minWidth: 180, maxWidth: 280 }}>
             <Field
-              label="Starting Balance (USD)"
+              label="Starting Balance"
+              labelTooltip="Initial capital for the backtest simulation. Results are calculated based on this starting amount."
               value={initialBalance}
               min={100} max={1_000_000} step={100}
               onChange={(v) => setInitialBalance(parseFloat(v) || 10_000)}
+              validate={(v) => v >= 100 && v <= 1000000}
+              validationMessage="Must be between $100 and $1,000,000"
+              suffix="$"
             />
           </div>
         </div>
@@ -470,7 +661,7 @@ export function StrategyDashboard() {
           disabled={isRunning}
           style={{
             width: '100%',
-            padding: '12px',
+            padding: '14px',
             borderRadius: 'var(--radius-md)',
             border: 'none',
             background: isRunning ? 'var(--color-border)' : 'var(--color-accent)',
@@ -478,11 +669,12 @@ export function StrategyDashboard() {
             fontWeight: 700,
             fontSize: 'var(--font-base)',
             cursor: isRunning ? 'not-allowed' : 'pointer',
-            transition: 'background 0.15s',
+            transition: 'all 0.15s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px',
+            gap: '10px',
+            boxShadow: isRunning ? 'none' : 'var(--shadow-md)'
           }}
           aria-label="Run back-test over 30 days of synthetic data"
         >
@@ -490,9 +682,9 @@ export function StrategyDashboard() {
             <>
               <span style={{
                 display: 'inline-block',
-                width: 14, height: 14,
+                width: 16, height: 16,
                 border: '2px solid var(--color-muted)',
-                borderTopColor: 'var(--color-text)',
+                borderTopColor: '#fff',
                 borderRadius: '50%',
                 animation: 'spin 0.7s linear infinite',
               }} />
@@ -510,13 +702,19 @@ export function StrategyDashboard() {
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-lg)',
+          padding: 'var(--space-xl)',
           boxShadow: 'var(--shadow-sm)',
         }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--color-text)' }}>
+          <h3 style={{ 
+            margin: '0 0 20px 0', 
+            fontSize: 'var(--font-lg)', 
+            fontWeight: 700, 
+            color: 'var(--color-text)',
+            letterSpacing: '-0.01em'
+          }}>
             📊 Backtest Summary
           </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <StatBox
               label="Final Balance"
               value={formatPrice(r.finalBalance)}
@@ -558,15 +756,35 @@ export function StrategyDashboard() {
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-lg)',
+          padding: 'var(--space-xl)',
           boxShadow: 'var(--shadow-sm)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ margin: 0, fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--color-text)' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            marginBottom: '20px', 
+            flexWrap: 'wrap', 
+            gap: '12px' 
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: 'var(--font-lg)', 
+              fontWeight: 700, 
+              color: 'var(--color-text)',
+              letterSpacing: '-0.01em'
+            }}>
               📈 Portfolio Value Over Time
             </h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <span className="badge" style={{ background: 'var(--color-accent-dim)', color: 'var(--color-accent)' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span style={{
+                fontSize: 'var(--font-xs)',
+                padding: '3px 10px',
+                borderRadius: '999px',
+                background: 'var(--color-accent-dim)',
+                color: 'var(--color-accent)',
+                fontWeight: 600
+              }}>
                 30-day simulation
               </span>
               <span className={`badge ${r.totalReturn >= 0 ? 'badge-green' : 'badge-red'}`}>
@@ -575,7 +793,7 @@ export function StrategyDashboard() {
             </div>
           </div>
 
-          <div style={{ width: '100%', height: 280 }} role="img" aria-label="Simulated portfolio equity curve">
+          <div style={{ width: '100%', height: 300 }} role="img" aria-label="Simulated portfolio equity curve">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={equityCurveDisplay} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
                 <defs>
@@ -639,18 +857,45 @@ export function StrategyDashboard() {
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-lg)',
+          padding: 'var(--space-xl)',
           boxShadow: 'var(--shadow-sm)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-            <h3 style={{ margin: 0, fontSize: 'var(--font-base)', fontWeight: 700, color: 'var(--color-text)' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between', 
+            marginBottom: '20px', 
+            flexWrap: 'wrap', 
+            gap: '12px' 
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: 'var(--font-lg)', 
+              fontWeight: 700, 
+              color: 'var(--color-text)',
+              letterSpacing: '-0.01em'
+            }}>
               🗒 Simulated Trade Log
             </h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <span className="badge" style={{ background: 'var(--color-surface2)', color: 'var(--color-muted)' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span style={{
+                fontSize: 'var(--font-xs)',
+                padding: '3px 10px',
+                borderRadius: '999px',
+                background: 'var(--color-surface2)',
+                color: 'var(--color-muted)',
+                fontWeight: 600
+              }}>
                 {r.trades.length} executions
               </span>
-              <span className="badge badge-accent">
+              <span style={{
+                fontSize: 'var(--font-xs)',
+                padding: '3px 10px',
+                borderRadius: '999px',
+                background: 'var(--color-accent-dim)',
+                color: 'var(--color-accent)',
+                fontWeight: 600
+              }}>
                 Showing last {Math.min(100, r.trades.length)}
               </span>
             </div>
@@ -665,13 +910,13 @@ export function StrategyDashboard() {
                       <th
                         key={h}
                         style={{
-                          padding: '8px 10px',
+                          padding: '10px 12px',
                           textAlign: h === 'P&L' || h === 'Amount (USD)' || h === 'Price' || h === 'Units' ? 'right' : 'left',
                           color: 'var(--color-muted)',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           letterSpacing: '0.05em',
                           textTransform: 'uppercase',
-                          borderBottom: '1px solid var(--color-border)',
+                          borderBottom: '2px solid var(--color-border)',
                           whiteSpace: 'nowrap',
                         }}
                       >
@@ -699,22 +944,19 @@ export function StrategyDashboard() {
                         }}
                         title={trade.reason}
                       >
-                        {/* Date/Time */}
-                        <td style={{ padding: '7px 10px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '10px 12px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                           {new Date(trade.timestamp).toLocaleString('en-US', {
                             month: 'short', day: 'numeric',
                             hour: '2-digit', minute: '2-digit',
                           })}
                         </td>
-                        {/* Asset */}
-                        <td style={{ padding: '7px 10px', fontWeight: 600, color: 'var(--color-text)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--color-text)' }}>
                           {trade.symbol}
                         </td>
-                        {/* Side badge */}
-                        <td style={{ padding: '7px 10px' }}>
+                        <td style={{ padding: '10px 12px' }}>
                           <span style={{
                             display: 'inline-block',
-                            padding: '2px 8px',
+                            padding: '3px 10px',
                             borderRadius: 'var(--radius-full)',
                             fontSize: '0.65rem',
                             fontWeight: 700,
@@ -733,24 +975,20 @@ export function StrategyDashboard() {
                             {trade.side}
                           </span>
                         </td>
-                        {/* Price */}
-                        <td style={{ padding: '7px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
                           {formatPrice(trade.price)}
                         </td>
-                        {/* Units */}
-                        <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--color-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--color-muted)', fontVariantNumeric: 'tabular-nums' }}>
                           {trade.units < 0.01
                             ? trade.units.toFixed(6)
                             : trade.units < 1
                               ? trade.units.toFixed(4)
                               : trade.units.toFixed(2)}
                         </td>
-                        {/* Amount USD */}
-                        <td style={{ padding: '7px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
                           {formatPrice(trade.amountUSD)}
                         </td>
-                        {/* P&L */}
-                        <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: pnlColor, fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: pnlColor, fontVariantNumeric: 'tabular-nums' }}>
                           {trade.side === 'BUY'
                             ? <span style={{ color: 'var(--color-muted)' }}>—</span>
                             : (trade.pnl >= 0 ? '+' : '') + formatPrice(trade.pnl)}
@@ -764,14 +1002,13 @@ export function StrategyDashboard() {
           </div>
 
           {r.trades.length > 100 && (
-            <p style={{ margin: '10px 0 0 0', fontSize: 'var(--font-xs)', color: 'var(--color-muted)', textAlign: 'center' }}>
+            <p style={{ margin: '12px 0 0 0', fontSize: 'var(--font-xs)', color: 'var(--color-muted)', textAlign: 'center' }}>
               Showing most recent 100 of {r.trades.length} total executions
             </p>
           )}
         </div>
       )}
 
-      {/* Inline keyframe for spinner (injected once) */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
