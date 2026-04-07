@@ -171,10 +171,7 @@ export function GlobalArbitrageMonitor() {
         </div>
       </div>
 
-      <div style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{
         padding: '24px',
       }}>
         {/* Main Grid */}

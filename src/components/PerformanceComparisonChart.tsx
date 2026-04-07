@@ -59,8 +59,9 @@ export function PerformanceComparisonChart() {
     return (
       <section aria-label="Performance Comparison">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
-            📈 Performance Comparison (14 Days)
+          <h2 className="section-heading" style={{ margin: 0 }}>
+            <span className="heading-icon">📈</span>
+            Performance Comparison (14 Days)
           </h2>
         </div>
         <ChartSkeleton />
@@ -71,15 +72,12 @@ export function PerformanceComparisonChart() {
   if (error) {
     return (
       <section aria-label="Performance Comparison">
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: 'var(--space-xl)',
           textAlign: 'center',
           color: 'var(--color-muted)',
         }}>
-          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>⚠️</div>
+          <div style={{ fontSize: '1.8rem', marginBottom: '8px', opacity: 0.7 }}>⚠️</div>
           <div>{error}</div>
           <div style={{ fontSize: 'var(--font-sm)', marginTop: '8px' }}>Try refreshing the page or check your connection</div>
         </div>
@@ -97,18 +95,15 @@ export function PerformanceComparisonChart() {
         flexWrap: 'wrap',
         gap: '8px'
       }}>
-        <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
-          📈 Performance Comparison (14 Days)
+        <h2 className="section-heading" style={{ margin: 0 }}>
+          <span className="heading-icon">📈</span>
+          Performance Comparison (14 Days)
         </h2>
         <span className="badge badge-accent">Normalized % Return</span>
       </div>
 
-      <div style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{
         padding: 'var(--space-lg)',
-        boxShadow: 'var(--shadow-sm)',
       }}>
         {/* Chart - now responsive */}
         <div style={{ height: '300px', width: '100%' }} role="img" aria-label="14-day performance comparison chart showing normalized returns for PAXG, XAUT, BTC, ETH, and BCH">
