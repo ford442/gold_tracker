@@ -54,14 +54,9 @@ export function CorrelationMatrix() {
         flexWrap: 'wrap', 
         gap: '12px' 
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-xl)', 
-          fontWeight: 700, 
-          color: 'var(--color-text)',
-          letterSpacing: '-0.02em'
-        }}>
-          🔗 Correlation Matrix
+        <h2 className="section-heading">
+          <span className="heading-icon">🔗</span>
+          Correlation Matrix
         </h2>
         <div style={{ display: 'flex', gap: '6px' }}>
           {PERIODS.map((p) => (
@@ -82,10 +77,7 @@ export function CorrelationMatrix() {
         </div>
       </div>
 
-      <div style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{
         padding: '20px',
         overflowX: 'auto',
       }}>

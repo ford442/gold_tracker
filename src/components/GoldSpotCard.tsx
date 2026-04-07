@@ -12,51 +12,45 @@ export function GoldSpotCard({ data }: Props) {
 
   return (
     <div 
-      className="card-hover"
+      className="card-hover glass-card-gold"
       style={{
-        background: 'var(--color-surface)',
-        backgroundImage: 'var(--gradient-gold)',
-        border: '2px solid var(--color-gold)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '18px',
+        padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
-        boxShadow: 'var(--shadow-md)',
-        position: 'relative',
-        overflow: 'hidden',
+        gap: '14px',
         cursor: 'default',
       }} 
       role="article" 
       aria-label="Spot Gold price card"
     >
-      {/* Gold accent decoration */}
+      {/* Gold ambient corner glow */}
       <div 
         style={{
           position: 'absolute',
           top: 0,
           right: 0,
-          width: '100px',
-          height: '100px',
-          background: 'radial-gradient(circle at top right, rgba(245,200,66,0.1) 0%, transparent 70%)',
-          pointerEvents: 'none'
+          width: '140px',
+          height: '140px',
+          background: 'radial-gradient(circle at top right, rgba(240,200,69,0.10) 0%, transparent 65%)',
+          pointerEvents: 'none',
+          zIndex: 0,
         }}
         aria-hidden="true"
       />
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span 
             style={{ 
-              fontSize: '1.5rem',
+              fontSize: '1.3rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '36px',
-              height: '36px',
-              background: 'rgba(245,200,66,0.15)',
+              width: '38px',
+              height: '38px',
+              background: 'linear-gradient(135deg, rgba(240,200,69,0.18), rgba(240,200,69,0.06))',
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-gold)'
+              border: '1px solid rgba(240,200,69,0.25)',
             }}
             aria-hidden="true"
           >
@@ -73,11 +67,11 @@ export function GoldSpotCard({ data }: Props) {
               XAU / Spot Gold
             </span>
             <div style={{ 
-              fontSize: 'var(--font-xs)', 
+              fontSize: '0.65rem', 
               color: 'var(--color-muted)', 
               marginTop: '2px',
               fontWeight: 500,
-              letterSpacing: '0.03em'
+              letterSpacing: '0.04em'
             }}>
               {data.unit}
             </div>
@@ -86,9 +80,9 @@ export function GoldSpotCard({ data }: Props) {
         <span 
           className="badge badge-gold"
           style={{ 
-            fontSize: '0.65rem',
+            fontSize: '0.6rem',
             textTransform: 'uppercase',
-            letterSpacing: '0.08em'
+            letterSpacing: '0.08em',
           }}
         >
           Reference
@@ -96,51 +90,34 @@ export function GoldSpotCard({ data }: Props) {
       </div>
 
       <div style={{ 
-        fontSize: '1.7rem', 
-        fontWeight: 700, 
+        fontSize: 'var(--font-2xl)', 
+        fontWeight: 800, 
         color: 'var(--color-gold)', 
         fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.02em'
+        letterSpacing: '-0.03em',
+        textShadow: '0 0 24px rgba(240,200,69,0.12)',
+        position: 'relative',
+        zIndex: 2,
       }}>
         {formatPrice(data.price)}
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', fontSize: 'var(--font-sm)' }}>
-        <span style={{ 
-          color: isPositive ? 'var(--color-green)' : 'var(--color-red)',
-          background: isPositive ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
-          padding: '4px 8px',
-          borderRadius: 'var(--radius-sm)',
-          fontWeight: 600,
-          fontSize: 'var(--font-xs)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}>
+      <div style={{ display: 'flex', gap: '8px', fontSize: 'var(--font-sm)', position: 'relative', zIndex: 2 }}>
+        <span className={`change-chip ${isPositive ? 'change-chip-green' : 'change-chip-red'}`}>
           {isPositive ? '↑' : '↓'} 24h {formatPercent(data.change24h)}
         </span>
-        <span style={{ 
-          color: data.change7d >= 0 ? 'var(--color-green)' : 'var(--color-red)',
-          background: data.change7d >= 0 ? 'var(--color-green-dim)' : 'var(--color-red-dim)',
-          padding: '4px 8px',
-          borderRadius: 'var(--radius-sm)',
-          fontWeight: 600,
-          fontSize: 'var(--font-xs)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}>
+        <span className={`change-chip ${data.change7d >= 0 ? 'change-chip-green' : 'change-chip-red'}`}>
           {data.change7d >= 0 ? '↑' : '↓'} 7d {formatPercent(data.change7d)}
         </span>
       </div>
 
       {sparkData.length > 1 && (
-        <div style={{ height: '50px', width: '100%', marginTop: '4px' }} aria-hidden="true">
+        <div style={{ height: '52px', width: '100%', marginTop: '2px', position: 'relative', zIndex: 2 }} aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData}>
               <defs>
                 <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-gold)" stopOpacity={0.4} />
+                  <stop offset="5%" stopColor="var(--color-gold)" stopOpacity={0.35} />
                   <stop offset="95%" stopColor="var(--color-gold)" stopOpacity={0} />
                 </linearGradient>
               </defs>

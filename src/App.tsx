@@ -60,127 +60,139 @@ function App() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: 'var(--color-bg)', 
-      transition: 'background-color 0.2s ease' 
+      position: 'relative',
+      transition: 'background-color 0.3s ease' 
     }}>
+      {/* Cinematic background layers */}
+      <div className="app-bg" />
+      <div className="app-noise" />
+
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
-      {/* Header with gold gradient accent */}
+      {/* Premium header with glass treatment */}
       <header style={{
-        background: 'var(--color-surface)',
-        backgroundImage: 'var(--gradient-gold)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px) saturate(1.2)',
+        WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
         borderBottom: '1px solid var(--color-border)',
-        padding: '14px 24px',
+        padding: '12px 28px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        boxShadow: 'var(--shadow-md)',
+        boxShadow: '0 1px 12px rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.03)',
       }} role="banner">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.6rem' }} role="img" aria-label="Gold medal">🥇</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, rgba(240,200,69,0.20), rgba(240,200,69,0.06))',
+            border: '1px solid rgba(240,200,69,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.1rem',
+          }}>
+            🥇
+          </div>
           <div>
             <div style={{ 
               fontWeight: 800, 
-              fontSize: '1.15rem', 
+              fontSize: '1.1rem', 
               color: 'var(--color-gold)', 
-              letterSpacing: '-0.02em' 
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2,
             }}>
               GoldTrackr
             </div>
             <div style={{ 
-              fontSize: '0.7rem', 
+              fontSize: '0.62rem', 
               color: 'var(--color-muted)', 
-              letterSpacing: '0.08em', 
-              marginTop: '-2px',
-              fontWeight: 600
+              letterSpacing: '0.10em', 
+              fontWeight: 600,
+              textTransform: 'uppercase',
             }}>
-              REAL-TIME GOLD & CRYPTO
+              Real-Time Gold & Crypto
             </div>
           </div>
         </div>
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '16px' }} aria-label="Main navigation">
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '10px' }} aria-label="Main navigation">
           <button
             onClick={() => setIsSettingsOpen(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 14px',
+              padding: '7px 14px',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
-              background: 'transparent',
+              background: 'rgba(255,255,255,0.03)',
               color: 'var(--color-muted)',
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               fontWeight: 500,
               cursor: 'pointer',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.18s ease',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-gold)';
+              e.currentTarget.style.borderColor = 'rgba(240,200,69,0.35)';
               e.currentTarget.style.color = 'var(--color-text)';
+              e.currentTarget.style.background = 'rgba(240,200,69,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = 'var(--color-border)';
               e.currentTarget.style.color = 'var(--color-muted)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
             }}
             aria-label="Open settings"
           >
-            <span>⚙️</span> Settings
+            <span style={{ fontSize: '0.85rem' }}>⚙️</span> Settings
           </button>
           <DarkModeToggle />
         </nav>
       </header>
 
-      {/* Main content with improved spacing */}
+      {/* Main content */}
       <main 
-        className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 max-w-[1400px] mx-auto pb-20" 
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-5 sm:p-6 max-w-[1440px] mx-auto pb-20" 
         role="main"
-        style={{ paddingTop: '32px' }}
+        style={{ paddingTop: '28px', position: 'relative', zIndex: 2 }}
       >
-        {/* Dashboard - full width */}
+        {/* Dashboard — hero zone */}
         <div className="col-span-1 lg:col-span-12">
           <Dashboard />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Trade Suggestions - full width (Priority) */}
         <div className="col-span-1 lg:col-span-12">
           <TradeSuggestionsPanel />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Trade Replay & Projections - full width */}
         <div className="col-span-1 lg:col-span-12">
           <TradeReplayChart />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Performance Comparison Chart - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PerformanceComparisonChart />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Global Arbitrage Monitor - full width */}
         <div className="col-span-1 lg:col-span-12">
           <GlobalArbitrageMonitor />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Correlation + Alerts */}
         <div className="col-span-1 lg:col-span-7">
           <CorrelationMatrix />
         </div>
@@ -188,26 +200,20 @@ function App() {
           <ArbitrageAlerts />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Portfolio - full width */}
         <div className="col-span-1 lg:col-span-12">
           <PortfolioTracker />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* Strategy Engine & Back-tester */}
         <div className="col-span-1 lg:col-span-12">
           <StrategyDashboard />
         </div>
 
-        {/* Section divider */}
         <div className="col-span-1 lg:col-span-12 section-divider" />
 
-        {/* News feed */}
         <div className="col-span-1 lg:col-span-12">
           <NewsFeed />
         </div>
@@ -216,16 +222,20 @@ function App() {
       {/* Footer */}
       <footer style={{
         borderTop: '1px solid var(--color-border)',
-        padding: '32px 24px',
+        padding: '28px 24px',
         textAlign: 'center',
         color: 'var(--color-muted)',
-        fontSize: '0.8rem',
-        background: 'var(--color-surface)'
+        fontSize: '0.75rem',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        position: 'relative',
+        zIndex: 2,
       }} role="contentinfo">
-        <div style={{ marginBottom: '8px' }}>
-          Data: CoinGecko · MetalPrice API · Kitco RSS · Prices auto-refresh every 60s
+        <div style={{ marginBottom: '6px', letterSpacing: '0.02em' }}>
+          Data: CoinGecko · MetalPrice API · Kitco RSS · Auto-refresh every 60s
         </div>
-        <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+        <div style={{ fontSize: '0.68rem', opacity: 0.6 }}>
           Not financial advice · Keyboard shortcuts: D (dark mode), R (refresh), S (settings)
         </div>
       </footer>

@@ -52,14 +52,9 @@ export function ArbitrageAlerts() {
         alignItems: 'center', 
         marginBottom: 'var(--space-lg)' 
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-xl)', 
-          fontWeight: 700, 
-          color: 'var(--color-text)',
-          letterSpacing: '-0.02em'
-        }}>
-          🔔 Arbitrage Alerts
+        <h2 className="section-heading">
+          <span className="heading-icon">🔔</span>
+          Arbitrage Alerts
         </h2>
         {activeAlerts.length > 0 && (
           <button
@@ -84,18 +79,14 @@ export function ArbitrageAlerts() {
       {/* PAXG vs XAUT live spread with micro-sparklines */}
       {paxg && xaut && (
         <div 
-          className="card-hover"
+          className="card-hover glass-card"
           style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
             padding: '16px 18px',
             marginBottom: '16px',
             display: 'flex',
             flexWrap: 'wrap',
             gap: '16px',
             alignItems: 'center',
-            boxShadow: 'var(--shadow-sm)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -161,16 +152,13 @@ export function ArbitrageAlerts() {
 
       {/* Alert history */}
       {activeAlerts.length === 0 ? (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: '32px',
           textAlign: 'center',
           color: 'var(--color-muted)',
           fontSize: 'var(--font-base)',
         }}>
-          <div style={{ fontSize: '2rem', marginBottom: '10px' }}>✅</div>
+          <div style={{ fontSize: '1.8rem', marginBottom: '10px', opacity: 0.7 }}>✅</div>
           <div style={{ fontWeight: 500 }}>No active alerts</div>
           <div style={{ fontSize: 'var(--font-xs)', marginTop: '6px' }}>
             Spread is within normal range (&lt;0.5%)
@@ -181,17 +169,14 @@ export function ArbitrageAlerts() {
           {activeAlerts.map((alert) => (
             <div
               key={alert.id}
-              className="card-hover"
+              className="card-hover glass-card"
               style={{
-                background: 'var(--color-surface)',
-                border: `1px solid ${alert.type === 'arbitrage' ? 'var(--color-gold)' : 'var(--color-border)'}`,
-                borderRadius: 'var(--radius-md)',
                 padding: '14px 16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
                 gap: '12px',
-                boxShadow: 'var(--shadow-sm)',
+                borderColor: alert.type === 'arbitrage' ? 'rgba(240,200,69,0.3)' : undefined,
               }}
             >
               <div style={{ flex: 1 }}>
