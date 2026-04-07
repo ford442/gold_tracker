@@ -190,23 +190,15 @@ export function TradeSuggestionsPanel() {
       <>
         <Toaster position="top-right" />
         <div 
+          className="glass-card"
           style={{ 
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-lg)',
             padding: '24px',
-            border: '1px solid var(--color-border)',
             marginBottom: 'var(--space-2xl)'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ 
-              margin: 0, 
-              fontSize: 'var(--font-xl)', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              letterSpacing: '-0.02em'
-            }}>
-              💡 Trading Intelligence
+            <h2 className="section-heading">
+              <span className="heading-icon">💡</span> Trading Intelligence
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{
@@ -294,25 +286,13 @@ export function TradeSuggestionsPanel() {
           },
         }}
       />
-      <div style={{ 
-        background: 'var(--color-surface)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{ 
         padding: '24px',
-        border: '1px solid var(--color-border)',
         marginBottom: 'var(--space-2xl)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-          <h2 style={{ 
-            margin: 0, 
-            fontSize: 'var(--font-xl)', 
-            fontWeight: 700, 
-            color: 'var(--color-text)',
-            letterSpacing: '-0.02em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            ⚡ Suggested Trades
+          <h2 className="section-heading">
+            <span className="heading-icon">⚡</span> Suggested Trades
             <span style={{
               fontSize: 'var(--font-xs)',
               padding: '4px 10px',

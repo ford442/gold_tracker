@@ -382,12 +382,8 @@ export function StrategyDashboard() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)', marginBottom: 'var(--space-2xl)' }}>
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{
         padding: 'var(--space-xl)',
-        boxShadow: 'var(--shadow-sm)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -396,15 +392,8 @@ export function StrategyDashboard() {
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '1.5rem' }}>⚙️</span>
-            <h2 style={{ 
-              margin: 0, 
-              fontSize: 'var(--font-xl)', 
-              fontWeight: 800, 
-              color: 'var(--color-text)',
-              letterSpacing: '-0.02em'
-            }}>
-              Strategy Engine
+            <h2 className="section-heading">
+              <span className="heading-icon">⚙️</span> Strategy Engine
             </h2>
             <span style={{
               fontSize: 'var(--font-xs)',
@@ -447,21 +436,11 @@ export function StrategyDashboard() {
       </div>
 
       {/* ── Configurator ────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div className="glass-card" style={{
         padding: 'var(--space-xl)',
-        boxShadow: 'var(--shadow-sm)',
       }}>
-        <h3 style={{ 
-          margin: '0 0 20px 0', 
-          fontSize: 'var(--font-lg)', 
-          fontWeight: 700, 
-          color: 'var(--color-text)',
-          letterSpacing: '-0.01em'
-        }}>
-          🔧 Strategy Configurator
+        <h3 className="section-heading" style={{ marginBottom: '20px' }}>
+          <span className="heading-icon">🔧</span> Strategy Configurator
         </h3>
 
         {/* Strategy type pills */}
@@ -698,21 +677,11 @@ export function StrategyDashboard() {
 
       {/* ── Results Summary ──────────────────────────────────────────────── */}
       {r && (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: 'var(--space-xl)',
-          boxShadow: 'var(--shadow-sm)',
         }}>
-          <h3 style={{ 
-            margin: '0 0 20px 0', 
-            fontSize: 'var(--font-lg)', 
-            fontWeight: 700, 
-            color: 'var(--color-text)',
-            letterSpacing: '-0.01em'
-          }}>
-            📊 Backtest Summary
+          <h3 className="section-heading" style={{ marginBottom: '20px' }}>
+            <span className="heading-icon">📊</span> Backtest Summary
           </h3>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <StatBox
@@ -752,12 +721,8 @@ export function StrategyDashboard() {
 
       {/* ── Equity Curve ─────────────────────────────────────────────────── */}
       {r && equityCurveDisplay.length > 1 && (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: 'var(--space-xl)',
-          boxShadow: 'var(--shadow-sm)',
         }}>
           <div style={{ 
             display: 'flex', 
@@ -767,14 +732,8 @@ export function StrategyDashboard() {
             flexWrap: 'wrap', 
             gap: '12px' 
           }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: 'var(--font-lg)', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              letterSpacing: '-0.01em'
-            }}>
-              📈 Portfolio Value Over Time
+            <h3 className="section-heading">
+              <span className="heading-icon">📈</span> Portfolio Value Over Time
             </h3>
             <div style={{ display: 'flex', gap: '10px' }}>
               <span style={{
@@ -853,12 +812,8 @@ export function StrategyDashboard() {
 
       {/* ── Trade Log ────────────────────────────────────────────────────── */}
       {r && r.trades.length > 0 && (
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: 'var(--space-xl)',
-          boxShadow: 'var(--shadow-sm)',
         }}>
           <div style={{ 
             display: 'flex', 
@@ -868,14 +823,8 @@ export function StrategyDashboard() {
             flexWrap: 'wrap', 
             gap: '12px' 
           }}>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: 'var(--font-lg)', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              letterSpacing: '-0.01em'
-            }}>
-              🗒 Simulated Trade Log
+            <h3 className="section-heading">
+              <span className="heading-icon">🗒</span> Simulated Trade Log
             </h3>
             <div style={{ display: 'flex', gap: '10px' }}>
               <span style={{

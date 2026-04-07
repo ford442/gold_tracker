@@ -214,10 +214,7 @@ export function TradeReplayChart() {
   if (!isLoadingHistory && sparkline.length < 2) {
     return (
       <section aria-label="Trade Replay and Projections">
-        <div style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
+        <div className="glass-card" style={{
           padding: 'var(--space-xl)',
           textAlign: 'center',
           color: 'var(--color-muted)',
@@ -243,8 +240,8 @@ export function TradeReplayChart() {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: '16px', flexWrap: 'wrap', gap: '8px',
       }}>
-        <h2 style={{ margin: 0, fontSize: 'var(--font-lg)', color: 'var(--color-text)' }}>
-          📈 Trade Replay &amp; Projections
+        <h2 className="section-heading">
+          <span className="heading-icon">📈</span> Trade Replay &amp; Projections
         </h2>
 
         {/* Asset selector dropdown */}
@@ -272,13 +269,8 @@ export function TradeReplayChart() {
         </select>
       </div>
 
-      <div ref={containerRef} style={{
-        background: 'var(--color-surface)',
-        backgroundImage: 'var(--gradient-gold)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
+      <div ref={containerRef} className="glass-card" style={{
         padding: 'var(--space-lg)',
-        boxShadow: 'var(--shadow-sm)',
       }}>
         {/* Controls row */}
         <div style={{

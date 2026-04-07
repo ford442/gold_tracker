@@ -115,7 +115,7 @@ export function NewsFeed() {
             alignItems: 'center', 
             gap: '10px', 
             fontWeight: 700,
-            letterSpacing: '-0.02em'
+            letterSpacing: '-0.025em'
           }}
           aria-expanded={!collapsed}
         >
@@ -166,10 +166,7 @@ export function NewsFeed() {
       {!collapsed && (
         <>
           {news.length === 0 ? (
-            <div style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
+            <div className="glass-card" style={{
               padding: '32px',
               textAlign: 'center',
               color: 'var(--color-muted)',
@@ -200,18 +197,14 @@ export function NewsFeed() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => markAsRead(item.id)}
-                    className="card-hover"
+                    className="card-hover glass-card"
                     style={{
                       display: 'block',
-                      background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)',
                       padding: '16px',
                       textDecoration: 'none',
                       color: 'inherit',
-                      transition: 'all 0.15s ease',
-                      opacity: read ? 0.7 : 1,
-                      position: 'relative'
+                      transition: 'all 0.18s ease',
+                      opacity: read ? 0.65 : 1,
                     }}
                   >
                     {/* Category badge */}
