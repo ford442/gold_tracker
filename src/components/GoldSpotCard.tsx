@@ -67,7 +67,7 @@ export function GoldSpotCard({ data }: Props) {
               XAU / Spot Gold
             </span>
             <div style={{ 
-              fontSize: '0.65rem', 
+              fontSize: 'var(--font-xxs)', 
               color: 'var(--color-muted)', 
               marginTop: '2px',
               fontWeight: 500,

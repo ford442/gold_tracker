@@ -67,7 +67,7 @@ export function PriceCard({ data, goldPrice }: Props) {
               {data.symbol}
             </span>
             <div style={{ 
-              fontSize: '0.65rem', 
+              fontSize: 'var(--font-xxs)', 
               color: 'var(--color-muted)', 
               marginTop: '2px',
               fontWeight: 500
