@@ -98,6 +98,8 @@ export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
       if (res.ok) {
         const data = await res.json();
         return metals.map((m) => {
+          // MetalPrice API returns grams of metal per 1 USD when base=USD.
+          // Invert to get USD per gram, then multiply by troy ounce weight (31.1035 g) for USD/oz.
           const gramsPerUsd: number = data.rates[m.symbol] ?? 0;
           const pricePerGram = gramsPerUsd > 0 ? 1 / gramsPerUsd : 0;
           const pricePerOz = pricePerGram * 31.1035;

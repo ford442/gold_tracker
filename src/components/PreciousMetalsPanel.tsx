@@ -33,13 +33,11 @@ const METAL_COLORS: Record<string, string> = {
 
 interface MetalCardProps {
   metal: MetalSpot;
-  goldPrice: number | null;
 }
 
-function MetalCard({ metal, goldPrice }: MetalCardProps) {
+function MetalCard({ metal }: MetalCardProps) {
   const isPositive24h = metal.change24h >= 0;
   const isPositive7d  = metal.change7d >= 0;
-  const vsGold = goldPrice ? ((metal.price - goldPrice) / goldPrice) * 100 : null;
   const sparkData = metal.sparkline.slice(-24).map((p) => ({ price: p.price }));
   const color = METAL_COLORS[metal.id] ?? 'var(--color-muted)';
 
@@ -128,11 +126,6 @@ function MetalCard({ metal, goldPrice }: MetalCardProps) {
         <span className={`change-chip ${isPositive7d ? 'change-chip-green' : 'change-chip-red'}`}>
           {isPositive7d ? '↑' : '↓'} 7d {formatPercent(metal.change7d)}
         </span>
-        {vsGold !== null && (
-          <span className={`change-chip ${vsGold >= 0 ? 'change-chip-green' : 'change-chip-red'}`}>
-            vs Gold {vsGold >= 0 ? '+' : ''}{vsGold.toFixed(1)}%
-          </span>
-        )}
       </div>
 
       {/* Sparkline */}
@@ -172,7 +165,8 @@ function buildComparisonData(
   const len = goldSparkline.length;
   if (len === 0) return [];
 
-  const goldBase = goldSparkline[0].price || 1;
+  const goldBase = goldSparkline[0].price;
+  if (!goldBase) return [];
 
   const rows = goldSparkline.map((pt, i) => {
     const row: Record<string, number | string> = {
@@ -183,7 +177,8 @@ function buildComparisonData(
       if (!selectedIds.includes(m.id)) continue;
       const spark = m.sparkline.slice(-len);
       if (spark.length === 0) continue;
-      const base = spark[0].price || 1;
+      const base = spark[0].price;
+      if (!base) continue;
       const p = spark[i]?.price ?? spark[spark.length - 1].price;
       row[m.name] = Math.round(((p - base) / base) * 1000) / 10;
     }
@@ -255,7 +250,7 @@ export function PreciousMetalsPanel() {
           Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
         ) : (
           otherMetals.map((metal) => (
-            <MetalCard key={metal.id} metal={metal} goldPrice={goldPrice} />
+            <MetalCard key={metal.id} metal={metal} />
           ))
         )}
       </div>
