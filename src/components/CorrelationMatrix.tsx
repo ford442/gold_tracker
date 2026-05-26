@@ -9,12 +9,13 @@ const PERIODS: CorrelationPeriod[] = ['1h', '1d', '7d', '30d'];
  * Uses a diverging color scale centered at 0
  * -1 (red) → 0 (neutral) → +1 (blue/green)
  */
-function getCorrelationStyle(value: number): { background: string; color: string } {
+function getCorrelationStyle(value: number): { background: string; color: string; glowClass: string } {
   if (value === 1) {
     // Perfect positive - diagonal only
     return { 
       background: 'rgba(124,92,252,0.3)', 
-      color: '#fff' 
+      color: '#fff',
+      glowClass: '',
     };
   }
   
@@ -25,7 +26,8 @@ function getCorrelationStyle(value: number): { background: string; color: string
       background: `linear-gradient(135deg, 
         rgba(124,92,252,${0.15 + intensity * 0.5}) 0%, 
         rgba(66,153,225,${0.1 + intensity * 0.4}) 100%)`,
-      color: intensity > 0.5 ? '#fff' : 'var(--color-text)'
+      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
+      glowClass: intensity > 0.75 ? 'corr-high-pos' : '',
     };
   } else {
     // Negative correlation - red/pink gradient
@@ -34,7 +36,8 @@ function getCorrelationStyle(value: number): { background: string; color: string
       background: `linear-gradient(135deg, 
         rgba(255,94,125,${0.15 + intensity * 0.5}) 0%, 
         rgba(220,38,38,${0.1 + intensity * 0.4}) 100%)`,
-      color: intensity > 0.5 ? '#fff' : 'var(--color-text)'
+      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
+      glowClass: intensity > 0.75 ? 'corr-high-neg' : '',
     };
   }
 }
@@ -129,6 +132,7 @@ export function CorrelationMatrix() {
                         onMouseEnter={() => setHoveredCell({i, j})}
                         onMouseLeave={() => setHoveredCell(null)}
                         title={`${assets[i]} vs ${assets[j]}: ${val.toFixed(3)}`}
+                        className={!isDiagonal ? style.glowClass : ''}
                         style={{
                           background: style.background,
                           borderRadius: 'var(--radius-md)',
@@ -139,7 +143,7 @@ export function CorrelationMatrix() {
                           minWidth: '52px',
                           display: 'inline-block',
                           opacity: isDiagonal ? 0.4 : 1,
-                          transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                          transform: isHovered ? 'scale(1.08)' : 'scale(1)',
                           transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                           boxShadow: isHovered ? '0 2px 8px rgba(0,0,0,0.2)' : 'none',
                           cursor: 'default',

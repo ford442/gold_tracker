@@ -228,32 +228,58 @@ export function TradeSuggestionsPanel() {
               </button>
             </div>
           </div>
+          {/* Premium empty state */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px 20px',
+            padding: '52px 20px 44px',
             textAlign: 'center'
           }}>
-            <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              background: 'var(--color-surface2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.8rem',
-              marginBottom: '16px'
-            }}>
-              🔍
+            {/* Pulsing gold icon ring */}
+            <div style={{ position: 'relative', marginBottom: '24px' }}>
+              <div style={{
+                position: 'absolute',
+                inset: '-12px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(212,175,55,0.12) 0%, transparent 70%)',
+                animation: 'pulse-live 2.4s ease-in-out infinite',
+              }} aria-hidden="true" />
+              <div style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(212,175,55,0.18), rgba(212,175,55,0.06))',
+                border: '1px solid rgba(212,175,55,0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem',
+                opacity: 0.75,
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                boxShadow: '0 0 24px rgba(212,175,55,0.12)',
+              }}>
+                ⚖️
+              </div>
             </div>
-            <p style={{ color: 'var(--color-muted)', fontSize: 'var(--font-base)', margin: 0 }}>
-              Scanning for arbitrage & opportunities...
+            <p style={{
+              fontFamily: 'var(--font-display)',
+              color: 'var(--color-gold)',
+              fontSize: 'var(--font-lg)',
+              fontWeight: 700,
+              margin: '0 0 8px',
+              letterSpacing: '0.01em',
+              opacity: 0.85,
+            }}>
+              Market is Balanced
             </p>
-            <p style={{ color: 'var(--color-muted)', fontSize: 'var(--font-xs)', marginTop: '8px' }}>
-              Updates every 30s
+            <p style={{ color: 'var(--color-muted)', fontSize: 'var(--font-base)', margin: '0 0 6px', maxWidth: '340px', lineHeight: 1.5 }}>
+              No significant arbitrage divergence detected at this time.
+            </p>
+            <p style={{ color: 'var(--color-muted)', fontSize: 'var(--font-xs)', marginTop: '4px', opacity: 0.6 }}>
+              Waiting for divergence · Scanning every 30s
             </p>
           </div>
         </div>
