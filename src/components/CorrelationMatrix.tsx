@@ -132,7 +132,7 @@ export function CorrelationMatrix() {
                         onMouseEnter={() => setHoveredCell({i, j})}
                         onMouseLeave={() => setHoveredCell(null)}
                         title={`${assets[i]} vs ${assets[j]}: ${val.toFixed(3)}`}
-                        className={!isDiagonal ? style.glowClass : ''}
+                        className={style.glowClass}
                         style={{
                           background: style.background,
                           borderRadius: 'var(--radius-md)',
