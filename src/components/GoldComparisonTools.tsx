@@ -113,6 +113,16 @@ interface OverlayPoint {
   [key: string]: number | string | undefined;
 }
 
+const PORTFOLIO_COLUMNS: { label: string; align: 'left' | 'right' }[] = [
+  { label: 'Asset',       align: 'left'  },
+  { label: 'Amount',      align: 'right' },
+  { label: 'Buy Price',   align: 'right' },
+  { label: 'Current',     align: 'right' },
+  { label: 'Value',       align: 'right' },
+  { label: 'P&L',         align: 'right' },
+  { label: 'Gold Equiv.', align: 'right' },
+];
+
 // ─── Utility helpers ──────────────────────────────────────────────────────────
 
 function generateMockGoldHistory(basePrice: number, points: number): [number, number][] {
@@ -121,6 +131,7 @@ function generateMockGoldHistory(basePrice: number, points: number): [number, nu
   let price = basePrice;
   return Array.from({ length: points }, (_, i) => {
     price = price * (1 + (Math.random() - 0.485) * 0.008);
+    // 0.485 gives a slight upward drift; 0.008 is ±0.8% per-step volatility
     return [now - (points - i) * msPerPoint, Math.round(price * 100) / 100];
   });
 }
@@ -281,7 +292,7 @@ export function GoldComparisonTools() {
       normalizedResults[id] = normalizeSeries(prices);
     }
 
-    const merged: OverlayPoint[] = sampledRef.map(([ts], refIdx) => {
+    const merged: OverlayPoint[] = sampledRef.map(([ts]) => {
       const pt: OverlayPoint = { time: getFormattedTime(ts) };
       // Map each instrument's normalized value
       for (const [id, normPrices] of Object.entries(normalizedResults)) {
@@ -297,7 +308,6 @@ export function GoldComparisonTools() {
         const approxIdx = Math.round((closestIdx / srcSeries.length) * normPrices.length);
         const normIdx = Math.max(0, Math.min(approxIdx, normPrices.length - 1));
         pt[id] = normPrices[normIdx];
-        void refIdx; // suppress unused warning
       }
       return pt;
     });
@@ -785,36 +795,41 @@ export function GoldComparisonTools() {
           </div>
 
           {/* Summary callout */}
-          <div style={{
-            marginTop: '16px',
-            padding: '12px 16px',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--color-gold-dim)',
-            border: '1px solid rgba(240,200,69,0.2)',
-            fontSize: 'var(--font-xs)',
-            color: 'var(--color-muted)',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}>
-            <div>
-              <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>💡 Buying large (kilo bars)</span>
-              {' '}saves{' '}
-              <strong style={{ color: 'var(--color-text)' }}>
-                ~${((premiumsData.find(f => f.id === 'eagle')?.calcPrice ?? 0) - (premiumsData.find(f => f.id === 'kilo-bar')?.calcPrice ?? 0)).toFixed(2)}
-              </strong>
-              {' '}per oz vs coins
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-cyan)', fontWeight: 700 }}>🔐 Crypto-gold spread</span>
-              {' '}PAXG vs XAUT:{' '}
-              <strong style={{ color: 'var(--color-text)' }}>
-                {paxgPrice && xautPrice
-                  ? `$${Math.abs(paxgPrice - xautPrice).toFixed(2)} (${(((paxgPrice - xautPrice) / xautPrice) * 100).toFixed(3)}%)`
-                  : 'N/A'}
-              </strong>
-            </div>
-          </div>
+          {(() => {
+            const eaglePrice = premiumsData.find(f => f.id === 'eagle')?.calcPrice ?? 0;
+            const kiloBarPrice = premiumsData.find(f => f.id === 'kilo-bar')?.calcPrice ?? 0;
+            const savingsPerOz = (eaglePrice - kiloBarPrice).toFixed(2);
+            return (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-gold-dim)',
+                border: '1px solid rgba(240,200,69,0.2)',
+                fontSize: 'var(--font-xs)',
+                color: 'var(--color-muted)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '16px',
+              }}>
+                <div>
+                  <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>💡 Buying large (kilo bars)</span>
+                  {' '}saves{' '}
+                  <strong style={{ color: 'var(--color-text)' }}>~${savingsPerOz}</strong>
+                  {' '}per oz vs coins
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-cyan)', fontWeight: 700 }}>🔐 Crypto-gold spread</span>
+                  {' '}PAXG vs XAUT:{' '}
+                  <strong style={{ color: 'var(--color-text)' }}>
+                    {paxgPrice && xautPrice
+                      ? `$${Math.abs(paxgPrice - xautPrice).toFixed(2)} (${(((paxgPrice - xautPrice) / xautPrice) * 100).toFixed(3)}%)`
+                      : 'N/A'}
+                  </strong>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1011,8 +1026,8 @@ export function GoldComparisonTools() {
                 >
                   <thead>
                     <tr>
-                      {['Asset', 'Amount', 'Buy Price', 'Current', 'Value', 'P&L', 'Gold Equiv.'].map((h) => (
-                        <th key={h} style={{
+                      {PORTFOLIO_COLUMNS.map((col) => (
+                        <th key={col.label} style={{
                           padding: '10px 12px',
                           fontSize: 'var(--font-xs)',
                           color: 'var(--color-muted)',
@@ -1020,10 +1035,10 @@ export function GoldComparisonTools() {
                           letterSpacing: '0.06em',
                           textTransform: 'uppercase',
                           borderBottom: '1px solid var(--color-border)',
-                          textAlign: h === 'Asset' ? 'left' : 'right',
+                          textAlign: col.align,
                           whiteSpace: 'nowrap',
                         }}>
-                          {h}
+                          {col.label}
                         </th>
                       ))}
                     </tr>
