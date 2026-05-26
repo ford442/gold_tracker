@@ -11,6 +11,7 @@ import { PerformanceComparisonChart } from './components/PerformanceComparisonCh
 import { GlobalArbitrageMonitor } from './components/GlobalArbitrageMonitor';
 import { TradeReplayChart } from './components/TradeReplayChart';
 import { StrategyDashboard } from './components/StrategyDashboard';
+import { GoldComparisonTools } from './components/GoldComparisonTools';
 import { useGoldPrices } from './hooks/useGoldPrices';
 import { useThemeStore } from './store/themeStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -204,6 +205,12 @@ function App() {
 
         <div className="col-span-1 lg:col-span-12">
           <PortfolioTracker />
+        </div>
+
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
+        <div className="col-span-1 lg:col-span-12">
+          <GoldComparisonTools />
         </div>
 
         <div className="col-span-1 lg:col-span-12 section-divider" />
