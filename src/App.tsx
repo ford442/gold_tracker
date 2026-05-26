@@ -102,10 +102,11 @@ function App() {
           </div>
           <div>
             <div style={{ 
-              fontWeight: 800, 
-              fontSize: '1.1rem', 
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700, 
+              fontSize: '1.15rem', 
               color: 'var(--color-gold)', 
-              letterSpacing: '-0.02em',
+              letterSpacing: '-0.01em',
               lineHeight: 1.2,
             }}>
               GoldTrackr
