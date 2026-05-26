@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
+import { PreciousMetalsPanel } from './components/PreciousMetalsPanel';
 import { CorrelationMatrix } from './components/CorrelationMatrix';
 import { ArbitrageAlerts } from './components/ArbitrageAlerts';
 import { PortfolioTracker } from './components/PortfolioTracker';
@@ -165,6 +166,13 @@ function App() {
         {/* Dashboard — hero zone */}
         <div className="col-span-1 lg:col-span-12">
           <Dashboard />
+        </div>
+
+        <div className="col-span-1 lg:col-span-12 section-divider" />
+
+        {/* Precious Metals Comparison */}
+        <div className="col-span-1 lg:col-span-12">
+          <PreciousMetalsPanel />
         </div>
 
         <div className="col-span-1 lg:col-span-12 section-divider" />

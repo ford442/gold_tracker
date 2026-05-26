@@ -1,4 +1,4 @@
-import type { PriceData, GoldSpot, NewsItem, SparklinePoint } from '../types';
+import type { PriceData, GoldSpot, MetalSpot, NewsItem, SparklinePoint } from '../types';
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
@@ -80,6 +80,46 @@ export async function fetchSpotGold(apiKey?: string): Promise<GoldSpot> {
   return getMockSpotGold();
 }
 
+// Fetch silver, platinum, and palladium spot prices
+export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
+  const metals: Array<{ id: string; symbol: string; name: string; base: string }> = [
+    { id: 'silver',    symbol: 'XAG', name: 'Silver',    base: 'XAG' },
+    { id: 'platinum',  symbol: 'XPT', name: 'Platinum',  base: 'XPT' },
+    { id: 'palladium', symbol: 'XPD', name: 'Palladium', base: 'XPD' },
+  ];
+
+  if (apiKey) {
+    try {
+      // Batch request: base=USD gives how many grams of each metal per USD
+      const symbols = metals.map((m) => m.symbol).join(',');
+      const res = await fetch(
+        `https://api.metalpriceapi.com/v1/latest?api_key=${apiKey}&base=USD&currencies=${symbols}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return metals.map((m) => {
+          const gramsPerUsd: number = data.rates[m.symbol] ?? 0;
+          const pricePerGram = gramsPerUsd > 0 ? 1 / gramsPerUsd : 0;
+          const pricePerOz = pricePerGram * 31.1035;
+          return {
+            id: m.id,
+            symbol: m.symbol,
+            name: m.name,
+            price: pricePerOz,
+            change24h: 0,
+            change7d: 0,
+            unit: 'USD/oz',
+            sparkline: mockSparkline(pricePerOz),
+          } as MetalSpot;
+        });
+      }
+    } catch (err) {
+      console.warn('MetalPrice other metals fetch failed:', err);
+    }
+  }
+  return getMockOtherMetals();
+}
+
 // Note: RSS fetching disabled due to CORS proxy reliability issues
 // News updates can be added via Supabase in the future
 export async function fetchGoldNews(): Promise<NewsItem[]> {
@@ -123,6 +163,24 @@ export function getMockSpotGold(): GoldSpot {
     unit: 'USD/oz',
     sparkline: mockSparkline(price),
   };
+}
+
+export function getMockOtherMetals(): MetalSpot[] {
+  const metals: Array<[string, string, string, number, number, number]> = [
+    ['silver',    'XAG', 'Silver',    32.5,  -0.42,  1.2],
+    ['platinum',  'XPT', 'Platinum',  960.0,  0.65, -0.8],
+    ['palladium', 'XPD', 'Palladium', 950.0, -1.10,  2.3],
+  ];
+  return metals.map(([id, symbol, name, price, c24, c7]) => ({
+    id,
+    symbol,
+    name,
+    price,
+    change24h: c24,
+    change7d: c7,
+    unit: 'USD/oz',
+    sparkline: mockSparkline(price),
+  }));
 }
 
 export function getMockNews(): NewsItem[] {
