@@ -31,7 +31,7 @@ export function GoldSpotCard({ data }: Props) {
           right: 0,
           width: '140px',
           height: '140px',
-          background: 'radial-gradient(circle at top right, rgba(240,200,69,0.10) 0%, transparent 65%)',
+          background: 'radial-gradient(circle at top right, rgba(212,175,55,0.12) 0%, transparent 65%)',
           pointerEvents: 'none',
           zIndex: 0,
         }}
@@ -48,9 +48,9 @@ export function GoldSpotCard({ data }: Props) {
               justifyContent: 'center',
               width: '38px',
               height: '38px',
-              background: 'linear-gradient(135deg, rgba(240,200,69,0.18), rgba(240,200,69,0.06))',
+              background: 'linear-gradient(135deg, rgba(212,175,55,0.20), rgba(212,175,55,0.07))',
               borderRadius: 'var(--radius-md)',
-              border: '1px solid rgba(240,200,69,0.25)',
+              border: '1px solid rgba(212,175,55,0.28)',
             }}
             aria-hidden="true"
           >
@@ -89,16 +89,18 @@ export function GoldSpotCard({ data }: Props) {
         </span>
       </div>
 
-      <div style={{ 
-        fontSize: 'var(--font-2xl)', 
-        fontWeight: 800, 
-        color: 'var(--color-gold)', 
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.03em',
-        textShadow: '0 0 24px rgba(240,200,69,0.12)',
-        position: 'relative',
-        zIndex: 2,
-      }}>
+      <div 
+        className="mono-num"
+        style={{ 
+          fontSize: 'var(--font-2xl)', 
+          fontWeight: 800, 
+          color: 'var(--color-gold)', 
+          letterSpacing: '-0.03em',
+          textShadow: '0 0 28px rgba(212,175,55,0.18)',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
         {formatPrice(data.price)}
       </div>
 
@@ -117,7 +119,7 @@ export function GoldSpotCard({ data }: Props) {
             <AreaChart data={sparkData}>
               <defs>
                 <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-gold)" stopOpacity={0.35} />
+                  <stop offset="5%" stopColor="var(--color-gold)" stopOpacity={0.40} />
                   <stop offset="95%" stopColor="var(--color-gold)" stopOpacity={0} />
                 </linearGradient>
               </defs>

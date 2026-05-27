@@ -159,11 +159,13 @@ function generateMockTicks(
 }
 
 const tooltipContentStyle: React.CSSProperties = {
-  backgroundColor: 'var(--color-surface2)',
-  border: '1px solid var(--color-border)',
+  backgroundColor: 'rgba(16,19,35,0.92)',
+  backdropFilter: 'blur(12px)',
+  border: '1px solid rgba(212,175,55,0.18)',
   borderRadius: 'var(--radius-md)',
   color: 'var(--color-text)',
   fontSize: '0.75rem',
+  boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
 };
 
 interface StatBoxProps {
@@ -761,7 +763,7 @@ export function StrategyDashboard() {
                     <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(80,86,140,0.15)" vertical={false} />
                 <XAxis
                   dataKey="timestamp"
                   tickFormatter={(t: number) =>

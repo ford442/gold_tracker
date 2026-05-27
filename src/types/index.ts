@@ -23,6 +23,17 @@ export interface GoldSpot {
   sparkline: SparklinePoint[];
 }
 
+export interface MetalSpot {
+  id: string;          // e.g. "silver", "platinum", "palladium"
+  symbol: string;      // e.g. "XAG", "XPT", "XPD"
+  name: string;        // e.g. "Silver"
+  price: number;       // USD per troy ounce
+  change24h: number;   // % change
+  change7d: number;    // % change
+  unit: string;        // "USD/oz"
+  sparkline: SparklinePoint[];
+}
+
 export type CorrelationPeriod = '1h' | '1d' | '7d' | '30d';
 
 export interface CorrelationMatrix {

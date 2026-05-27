@@ -127,7 +127,7 @@ export function PnLOverTimeChart() {
       <div style={{ width: '100%', height: isMobile ? 180 : 240 }} role="img" aria-label="Portfolio profit and loss chart showing cumulative returns and drawdown">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 5, right: 10, left: isMobile ? -10 : 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(80,86,140,0.15)" vertical={false} />
             <XAxis
               dataKey="label"
               stroke="var(--color-muted)"
@@ -142,11 +142,13 @@ export function PnLOverTimeChart() {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'var(--color-surface2)',
-                border: '1px solid var(--color-border)',
+                backgroundColor: 'rgba(16,19,35,0.92)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(212,175,55,0.18)',
                 borderRadius: 'var(--radius-md)',
                 color: 'var(--color-text)',
                 fontSize: '0.75rem',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
               }}
               formatter={(value?: number, name?: string) => {
                 const v = value ?? 0;

@@ -109,7 +109,7 @@ export function PerformanceComparisonChart() {
         <div style={{ height: '300px', width: '100%' }} role="img" aria-label="14-day performance comparison chart showing normalized returns for PAXG, XAUT, BTC, ETH, and BCH">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(80,86,140,0.15)" vertical={false} />
               <XAxis 
                 dataKey="day" 
                 stroke="var(--color-muted)" 
@@ -124,10 +124,12 @@ export function PerformanceComparisonChart() {
               />
               <Tooltip 
                 contentStyle={{ 
-                  backgroundColor: 'var(--color-surface2)', 
-                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'rgba(16,19,35,0.92)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(212,175,55,0.18)',
                   borderRadius: 'var(--radius-md)',
                   color: 'var(--color-text)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
                 }}
                 formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
               />

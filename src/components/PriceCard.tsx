@@ -83,16 +83,18 @@ export function PriceCard({ data, goldPrice }: Props) {
         )}
       </div>
 
-      {/* Price — bold and dominant */}
-      <div style={{ 
-        fontSize: '1.55rem', 
-        fontWeight: 800, 
-        color: 'var(--color-text)', 
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '-0.03em',
-        position: 'relative',
-        zIndex: 2,
-      }}>
+      {/* Price — bold and dominant, monospaced for precision */}
+      <div 
+        className="mono-num"
+        style={{ 
+          fontSize: '1.55rem', 
+          fontWeight: 800, 
+          color: 'var(--color-text)', 
+          letterSpacing: '-0.03em',
+          position: 'relative',
+          zIndex: 2,
+        }}
+      >
         {formatPrice(data.price)}
       </div>
 
