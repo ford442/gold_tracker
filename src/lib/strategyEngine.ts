@@ -269,26 +269,251 @@ export function createMeanReversionStrategy(config: MRConfig): TradingStrategy {
   };
 }
 
+// ─── Benchmark / Scenario Strategies (Feature 3) ─────────────────────────────
+
+/**
+ * Hold (no-trade) strategy.
+ * Useful as a pure "buy & hold under scenario" benchmark.
+ * requiredAssets can be empty (or list the assets you still want price snapshots for).
+ */
+export function createHoldStrategy(requiredAssets: string[] = []): TradingStrategy {
+  return {
+    name: 'Hold',
+    description: 'Buy & hold benchmark — no rebalancing or signals',
+    requiredAssets,
+    onTick: () => [],
+  };
+}
+
+export interface RebalanceConfig {
+  /** Asset ids considered part of the "gold sleeve" (e.g. ['pax-gold', 'tether-gold', 'gold']) */
+  goldAssetIds: string[];
+  /** Target fraction of total equity in the gold sleeve (0.0–1.0), e.g. 0.60 */
+  targetGoldPct: number;
+  /** Rebalance only when |actual - target| exceeds this band (e.g. 0.05 = 5%) */
+  rebalanceBandPct: number;
+  /** Optional fixed USD size per rebalance trade; if omitted a proportional adjustment is used */
+  tradeSizeUsd?: number;
+}
+
+/**
+ * Gold Exposure Rebalancer.
+ *
+ * On every tick computes current gold-sleeve % of total equity (cash + all positions).
+ * If outside the band around target, emits BUY (into a gold asset using cash) or
+ * SELL (from a gold asset, proceeds become cash / reduce risk sleeve).
+ *
+ * Works with pre-seeded positions (via runBacktest initialPositions) and with
+ * additional cash for DCA-style top-ups.
+ *
+ * One or more gold assets supported; picks the first for the adjustment (simple).
+ */
+export function createGoldExposureRebalancer(config: RebalanceConfig): TradingStrategy {
+  const { goldAssetIds, targetGoldPct, rebalanceBandPct, tradeSizeUsd } = config;
+
+  return {
+    name: 'Gold Exposure Rebalancer',
+    description: `Target ${Math.round(targetGoldPct * 100)}% gold sleeve (±${rebalanceBandPct}%)`,
+    requiredAssets: goldAssetIds.length ? goldAssetIds : ['pax-gold', 'tether-gold'],
+
+    onTick(tick, state): TradeSignal[] {
+      const prices = tick.prices;
+      if (!goldAssetIds.length) return [];
+
+      // Total equity (cash + mark-to-market)
+      let totalEquity = state.balanceUSD;
+      for (const [assetId, pos] of Object.entries(state.positions)) {
+        const p = prices[assetId];
+        if (p && pos.units > 0) totalEquity += pos.units * p;
+      }
+      if (totalEquity <= 0) return [];
+
+      // Gold sleeve value
+      let goldValue = 0;
+      for (const gid of goldAssetIds) {
+        const p = prices[gid];
+        const pos = state.positions[gid];
+        if (p && pos && pos.units > 0) goldValue += pos.units * p;
+      }
+      const actualPct = goldValue / totalEquity;
+      const deviation = Math.abs(actualPct - targetGoldPct);
+
+      const signals: TradeSignal[] = [];
+      if (deviation <= rebalanceBandPct) return signals;
+
+      // Pick a gold asset to adjust (first one with a price)
+      const targetGoldId = goldAssetIds.find((id) => prices[id] != null) ?? goldAssetIds[0];
+      const targetPrice = prices[targetGoldId];
+      if (!targetPrice || targetPrice <= 0) return signals;
+
+      const desiredGoldValue = totalEquity * targetGoldPct;
+      const deltaValue = desiredGoldValue - goldValue; // >0 → buy gold
+
+      if (Math.abs(deltaValue) < 1) return signals;
+
+      if (deltaValue > 0) {
+        // Buy gold sleeve using available cash
+        const spend = tradeSizeUsd
+          ? Math.min(tradeSizeUsd, state.balanceUSD, deltaValue)
+          : Math.min(state.balanceUSD, deltaValue * 0.98); // small buffer
+        if (spend >= 1) {
+          signals.push({
+            asset: targetGoldId,
+            symbol: toSymbol(targetGoldId),
+            side: 'BUY',
+            amountUSD: spend,
+            reason: `Rebalance: gold sleeve ${ (actualPct * 100).toFixed(1) }% → target ${ (targetGoldPct * 100).toFixed(1) }% (buy)`,
+          });
+        }
+      } else {
+        // Sell gold sleeve (proceeds reduce risk sleeve / become cash)
+        const pos = state.positions[targetGoldId];
+        if (pos && pos.units > 0.000001) {
+          const sellValue = tradeSizeUsd
+            ? Math.min(tradeSizeUsd, Math.abs(deltaValue))
+            : Math.abs(deltaValue) * 0.98;
+          // We liquidate a dollar amount worth of units
+          const unitsToSell = Math.min(pos.units, sellValue / targetPrice);
+          if (unitsToSell * targetPrice >= 1) {
+            signals.push({
+              asset: targetGoldId,
+              symbol: toSymbol(targetGoldId),
+              side: 'SELL',
+              amountUSD: 0,
+              reason: `Rebalance: gold sleeve ${ (actualPct * 100).toFixed(1) }% → target ${ (targetGoldPct * 100).toFixed(1) }% (sell)`,
+            });
+          }
+        }
+      }
+
+      return signals;
+    },
+  };
+}
+
+/**
+ * Simple periodic DCA into a target gold asset.
+ * Emits a small BUY every `everyNTicks` ticks (using available cash).
+ * Can be used standalone or combined with a rebalancer in UI orchestration.
+ */
+export interface DcaConfig {
+  targetAsset: string;
+  usdPerPeriod: number;
+  everyNTicks: number; // e.g. 24 for "daily" in an hourly-tick simulation
+}
+
+export function createPeriodicDcaStrategy(config: DcaConfig): TradingStrategy {
+  const { targetAsset, usdPerPeriod, everyNTicks } = config;
+  let tickCounter = 0;
+
+  return {
+    name: 'Periodic DCA',
+    description: `DCA $${usdPerPeriod} into ${toSymbol(targetAsset)} every ${everyNTicks} ticks`,
+    requiredAssets: [targetAsset],
+
+    onTick(tick, state): TradeSignal[] {
+      tickCounter++;
+      const signals: TradeSignal[] = [];
+      if (tickCounter % everyNTicks === 0) {
+        const p = tick.prices[targetAsset];
+        if (p && p > 0 && state.balanceUSD >= 1) {
+          const spend = Math.min(usdPerPeriod, state.balanceUSD);
+          if (spend >= 1) {
+            signals.push({
+              asset: targetAsset,
+              symbol: toSymbol(targetAsset),
+              side: 'BUY',
+              amountUSD: spend,
+              reason: `DCA period — buying ${toSymbol(targetAsset)}`,
+            });
+          }
+        }
+      }
+      return signals;
+    },
+  };
+}
+
+// ─── Pure Scenario Helpers (Feature 3) ────────────────────────────────────────
+
+/**
+ * Apply per-asset multiplicative shocks to an existing tick series.
+ * shocks = { 'pax-gold': 1.10, 'bitcoin': 0.75, ... }
+ * Returns a *new* array (does not mutate input).
+ */
+export function applyShocksToTicks(
+  baseTicks: BacktestTick[],
+  shocks: Record<string, number>
+): BacktestTick[] {
+  return baseTicks.map((t) => {
+    const newPrices: Record<string, number> = {};
+    for (const [id, price] of Object.entries(t.prices)) {
+      const factor = shocks[id];
+      newPrices[id] = factor != null ? price * factor : price;
+    }
+    return { timestamp: t.timestamp, prices: newPrices };
+  });
+}
+
+/**
+ * Generate a basic multi-asset synthetic base series (used for scenario shocks
+ * when no historical data is chosen). Simple GBM-style walks per asset with a
+ * little shared noise for realism. Anchored to the provided basePrices.
+ */
+export function generateBaseScenarioTicks(
+  numTicks = 720,
+  basePrices: Record<string, number> = {
+    'pax-gold': 3280.5,
+    'tether-gold': 3284.2,
+    bitcoin: 97450,
+    ethereum: 3850,
+    gold: 3290,
+  }
+): BacktestTick[] {
+  const now = Date.now();
+  const ticks: BacktestTick[] = [];
+  const current: Record<string, number> = { ...basePrices };
+
+  for (let i = 0; i < numTicks; i++) {
+    const timestamp = now - (numTicks - i) * 3_600_000;
+    const prices: Record<string, number> = {};
+    // Small shared market factor + asset-specific vol
+    const marketFactor = 1 + 0.0002 * (Math.random() - 0.5);
+    for (const id of Object.keys(basePrices)) {
+      const vol = id.includes('gold') || id === 'gold' ? 0.0008 : 0.008;
+      const drift = id.includes('gold') || id === 'gold' ? 0.00005 : 0.0001;
+      current[id] = current[id] * (1 + drift + (Math.random() - 0.5) * vol) * marketFactor;
+      prices[id] = parseFloat(current[id].toFixed(4));
+    }
+    ticks.push({ timestamp, prices });
+  }
+  return ticks;
+}
+
 // ─── Back-test Runner ────────────────────────────────────────────────────────
 
 /**
  * Runs a strategy over a historical tick sequence and returns a complete
  * BacktestResult including equity curve, trade log, and performance metrics.
  *
- * @param ticks          Chronologically ordered price ticks
- * @param strategy       A TradingStrategy instance
- * @param initialBalance Starting USD cash balance
+ * @param ticks            Chronologically ordered price ticks
+ * @param strategy         A TradingStrategy instance
+ * @param initialBalance   Starting USD cash balance (extra cash for buys/DCA)
+ * @param initialPositions Optional starting positions (units + avgCost) to seed
+ *                         from a real portfolio snapshot. Equity and P&L are
+ *                         computed from the first tick's prices onward.
  */
 export function runBacktest(
   ticks: BacktestTick[],
   strategy: TradingStrategy,
   initialBalance: number,
+  initialPositions?: Record<string, { units: number; avgCost: number }>,
 ): BacktestResult {
   _idCounter = 0; // reset for deterministic IDs per run
 
   const state: EngineState = {
     balanceUSD: initialBalance,
-    positions: {},
+    positions: initialPositions ? JSON.parse(JSON.stringify(initialPositions)) : {},
   };
 
   const trades: TradeLog[] = [];

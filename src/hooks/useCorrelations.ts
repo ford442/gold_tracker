@@ -13,6 +13,11 @@ const PERIOD_POINTS: Record<CorrelationPeriod, number> = {
   '30d': 168, // CoinGecko free tier provides 7 days of hourly sparkline data
 };
 
+// NOTE: The above are short-term/tactical windows on live sparklines.
+// For true 90d/1y/MAX structural correlations, Gold Fidelity Scores (PAXG/XAUT vs spot vs BTC/ETH),
+// rolling divergence history, and vol/drawdown regime lens, use the "Fidelity & Regimes" tab
+// inside Advanced Gold Comparison Tools (powered by full market_chart + pure lib/regime.ts).
+
 export function useCorrelations(period: CorrelationPeriod): CorrelationMatrix {
   const { prices, goldSpot } = usePriceStore();
 

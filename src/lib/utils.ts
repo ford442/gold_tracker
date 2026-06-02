@@ -93,3 +93,42 @@ export function correlationColor(value: number): string {
     return `rgb(${Math.round(255 * abs)},${Math.round(94 * (1 - abs))},${Math.round(125 * (1 - abs))})`;
   }
 }
+
+/**
+ * Get gradient background + text color for a correlation value in UI matrices.
+ * Uses a diverging scale centered at 0:
+ * -1 (red/pink) → 0 (neutral) → +1 (blue/purple).
+ * Extracted here so CorrelationMatrix and RegimeLens share identical styling.
+ */
+export function getCorrelationStyle(value: number): { background: string; color: string; glowClass: string } {
+  if (value === 1) {
+    // Perfect positive - diagonal only
+    return {
+      background: 'rgba(124,92,252,0.3)',
+      color: '#fff',
+      glowClass: '',
+    };
+  }
+
+  if (value > 0) {
+    // Positive correlation - blue/purple gradient
+    const intensity = Math.pow(value, 0.7); // Non-linear for better visual distinction
+    return {
+      background: `linear-gradient(135deg,
+        rgba(124,92,252,${0.15 + intensity * 0.5}) 0%,
+        rgba(66,153,225,${0.1 + intensity * 0.4}) 100%)`,
+      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
+      glowClass: intensity > 0.75 ? 'corr-high-pos' : '',
+    };
+  } else {
+    // Negative correlation - red/pink gradient
+    const intensity = Math.pow(Math.abs(value), 0.7);
+    return {
+      background: `linear-gradient(135deg,
+        rgba(255,94,125,${0.15 + intensity * 0.5}) 0%,
+        rgba(220,38,38,${0.1 + intensity * 0.4}) 100%)`,
+      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
+      glowClass: intensity > 0.75 ? 'corr-high-neg' : '',
+    };
+  }
+}

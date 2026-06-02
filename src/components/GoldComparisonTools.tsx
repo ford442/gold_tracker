@@ -6,17 +6,20 @@ import {
 import { usePriceStore } from '../store/priceStore';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { ChartSkeleton } from './LoadingSkeleton';
+import { RegimeLens } from './RegimeLens';
+import { pearsonCorrelation } from '../lib/utils';
 import type { ChartRange } from '../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type ComparisonTab = 'overlay' | 'premiums' | 'currencies' | 'portfolio';
+type ComparisonTab = 'overlay' | 'premiums' | 'currencies' | 'portfolio' | 'regimes';
 
 const TABS: { id: ComparisonTab; label: string; icon: string }[] = [
   { id: 'overlay',    label: 'Price Overlay',  icon: '📊' },
   { id: 'premiums',   label: 'Premiums',       icon: '🏅' },
   { id: 'currencies', label: 'Currencies',     icon: '🌍' },
   { id: 'portfolio',  label: 'Portfolio',      icon: '💼' },
+  { id: 'regimes',    label: 'Fidelity & Regimes', icon: '🔬' },
 ];
 
 // Instruments shown on the overlay chart
@@ -642,6 +645,45 @@ export function GoldComparisonTools() {
           }}>
             Normalized % return from period start · Spot gold uses estimated historical data
           </div>
+
+          {/* Lightweight fidelity callout derived from the *same* overlay data (no extra fetches) */}
+          {!overlayLoading && !overlayError && overlayData.length > 3 && (
+            <div style={{
+              marginTop: '12px',
+              paddingTop: '10px',
+              borderTop: '1px solid var(--color-border)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              alignItems: 'center',
+              fontSize: 'var(--font-xxs)',
+            }}>
+              <span style={{ color: 'var(--color-muted)', marginRight: '4px' }}>Fidelity (this window, from overlay):</span>
+              {(() => {
+                const paxgSeries = overlayData.map((d) => (d['pax-gold'] as number) ?? 0).filter((v) => typeof v === 'number');
+                const xautSeries = overlayData.map((d) => (d['tether-gold'] as number) ?? 0).filter((v) => typeof v === 'number');
+                const spotSeries = overlayData.map((d) => (d['spot-gold'] as number) ?? 0).filter((v) => typeof v === 'number');
+                const btcSeries = overlayData.map((d) => (d['bitcoin'] as number) ?? 0).filter((v) => typeof v === 'number');
+                const paxgGold = paxgSeries.length > 1 && spotSeries.length > 1 ? pearsonCorrelation(paxgSeries, spotSeries) : 0;
+                const paxgBtc = paxgSeries.length > 1 && btcSeries.length > 1 ? pearsonCorrelation(paxgSeries, btcSeries) : 0;
+                const xautGold = xautSeries.length > 1 && spotSeries.length > 1 ? pearsonCorrelation(xautSeries, spotSeries) : 0;
+                const xautBtc = xautSeries.length > 1 && btcSeries.length > 1 ? pearsonCorrelation(xautSeries, btcSeries) : 0;
+                const fidP = Math.max(0, Math.min(100, Math.round(50 + 50 * (paxgGold - paxgBtc))));
+                const fidX = Math.max(0, Math.min(100, Math.round(50 + 50 * (xautGold - xautBtc))));
+                return (
+                  <>
+                    <span className="badge badge-gold" title="Derived from normalized overlay series for this range. Full interactive matrix + rolling in Fidelity & Regimes tab.">
+                      PAXG fid {fidP}
+                    </span>
+                    <span className="badge badge-gold" title="Derived from normalized overlay series for this range. Full interactive matrix + rolling in Fidelity & Regimes tab.">
+                      XAUT fid {fidX}
+                    </span>
+                    <span style={{ color: 'var(--color-muted)', marginLeft: '4px' }}>· See Fidelity &amp; Regimes tab for scores, long matrix, and live deltas</span>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -954,6 +996,11 @@ export function GoldComparisonTools() {
             ⚠️ FX rates are static approximations. Real-time FX requires a dedicated currency API.
           </div>
         </div>
+      )}
+
+      {/* ── REGIMES / FIDELITY TAB ─────────────────────────────────────── */}
+      {activeTab === 'regimes' && (
+        <RegimeLens />
       )}
 
       {/* ── PORTFOLIO TAB ───────────────────────────────────────────────── */}

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,

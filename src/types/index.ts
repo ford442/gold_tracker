@@ -116,3 +116,27 @@ export interface ChartConfig {
   compareTo?: 'spot' | 'benchmark' | 'basket';
   scenario: ScenarioMode;
 }
+
+// --- Regime / Fidelity Analysis (Feature 1) ---
+export type AnalysisHorizon = '30d' | '90d' | '1y' | 'max';
+
+export interface FidelityScore {
+  score: number; // 0-100 Gold Fidelity composite
+  corrToGold: number;
+  corrToBtc: number;
+  corrToEth: number;
+  realizedVol: number; // annualized %
+  maxDrawdown: number; // % peak-to-trough in window
+  regimeLabel: string;
+}
+
+export interface RegimeAnalysisResult {
+  horizon: AnalysisHorizon;
+  paxg: FidelityScore;
+  xaut: FidelityScore;
+  longCorrelations: { assets: string[]; matrix: number[][] }; // Gold, PAXG, XAUT, BTC, ETH
+  rollingCorrs?: Array<{ t: string; gold: number; btc: number }>; // for history of shifts
+  dataPoints: number;
+  isEstimatedSpot: boolean;
+  warnings: string[];
+}

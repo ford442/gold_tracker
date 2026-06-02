@@ -8,7 +8,8 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 
 **Key Features:**
 - Live price dashboard with 24h/7d changes and sparkline charts
-- Correlation matrix across multiple time periods (1h/1d/7d/30d)
+- Correlation matrix across multiple time periods (1h/1d/7d/30d) + longer-horizon structural view
+- Gold Fidelity Scores, multi-horizon correlations, rolling divergence history, and volatility/drawdown regime lens (Fidelity & Regimes tab)
 - Arbitrage alerts for PAXG/XAUT spread opportunities
 - Portfolio tracker with unrealized P&L, gold exposure %, crypto beta %, and Coinbase balance sync
 - Trade suggestions based on market conditions
@@ -67,12 +68,15 @@ goldtracker/
 │   │   ├── GlobalArbitrageMonitor.tsx # Global arb monitor with synthetic signals
 │   │   ├── TradeReplayChart.tsx    # Trade replay with projections and buy/sell markers
 │   │   ├── PerformanceComparisonChart.tsx # 14-day normalized returns chart
+│   │   ├── GoldComparisonTools.tsx   # Advanced multi-tab comparison (now includes Fidelity & Regimes tab)
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
+│   │   ├── RegimeLens.tsx          # Fidelity & Regimes tab content (scores, long matrix, rolling corr history, live deltas, NFA framing)
 │   │   └── LoadingSkeleton.tsx     # Skeleton loading components (Skeleton, ChartSkeleton, TableSkeleton, CardSkeleton)
 │   ├── hooks/               # Custom React hooks
 │   │   ├── useGoldPrices.ts        # Price polling (60s interval)
 │   │   ├── useTradeSuggestions.ts  # Trading signal generation
-│   │   ├── useCorrelations.ts      # Correlation calculations
+│   │   ├── useCorrelations.ts      # Correlation calculations (short-term tactical on sparklines)
+│   │   ├── useRegimeAnalysis.ts    # Long-horizon regime/fidelity data (powers Fidelity & Regimes tab)
 │   │   ├── useArbitrageAlerts.ts   # Arbitrage detection
 │   │   ├── useNews.ts              # News fetching
 │   │   └── useCoinbaseBalances.ts  # Coinbase account balance polling (60s)
@@ -96,7 +100,8 @@ goldtracker/
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
 │   │   ├── krakenApi.ts            # Kraken pair mapping and fee comparison utilities
-│   │   └── strategyEngine.ts       # Pure TypeScript backtest engine (arbitrage + mean-reversion)
+│   │   ├── strategyEngine.ts       # Pure TypeScript backtest engine (arbitrage + mean-reversion)
+│   │   └── regime.ts               # Pure TypeScript regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
 │   ├── App.tsx              # Main application component with keyboard shortcuts
 │   ├── main.tsx             # Entry point (StrictMode)
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
@@ -352,19 +357,32 @@ A pure TypeScript backtesting engine with no React dependencies.
    - Sells at take-profit (Y% above SMA) or stop-loss
    - Uses Ornstein-Uhlenbeck synthetic price generation
 
+3. **Gold Exposure Rebalancer** (`createGoldExposureRebalancer`)
+   - Targets a % of total equity in the gold sleeve (PAXG/XAUT/gold)
+   - Rebalances only when actual % deviates beyond a configurable band
+   - Emits BUY/SELL signals; works with seeded real portfolio holdings via runBacktest initialPositions
+
+4. **Hold** (`createHoldStrategy`)
+   - No-op benchmark for "buy & hold under shocks"
+
 **Backtest Runner** (`runBacktest`):
 - Processes chronologically ordered price ticks
 - Tracks equity curve, trade log, max drawdown
 - Liquidates open positions at final tick prices
 - Returns: `BacktestResult` with total return, win rate, equity curve, trades
+- Lightly extended (Feature 3): optional 4th param `initialPositions` for seeding from PortfolioEntry snapshots (units + avgCost). Backward compatible.
+- Pure helpers: `applyShocksToTicks`, `generateBaseScenarioTicks` for scenario/stress what-ifs (simple multipliers + ramp on base series).
 
 ### `StrategyDashboard` Component
 
 - Strategy configurator with validation
-- Mock tick generator (720 ticks = 30 days of hourly data)
-- Equity curve area chart
+- Internal "Classic Backtest" vs "Scenario Lab" modes (pills)
+- Scenario Lab: 5 built-in macro shocks + custom % moves, seed from live portfolio (usePortfolioStore), extra cash + DCA inputs, runs rebalancer + hold benchmarks, shows equity, trades, final gold oz, comparisons
+- Mock tick generator (720 ticks = 30 days of hourly data) + shock application
+- Equity curve area chart (reused for both modes)
 - Trade log table (last 100 executions)
 - Performance stat boxes (final balance, return, max drawdown, win rate, trades)
+- Strong repeated "simulation / not financial advice" framing
 
 ## Component Patterns
 
@@ -408,6 +426,8 @@ Key utilities in `src/lib/utils.ts`:
 - `computeSpread(price1, price2)` - Calculate percentage spread
 - `correlationColor(value)` - Get color for correlation value (-1 to +1)
 - `sparklinePrices(points, count)` - Extract price array from SparklinePoint[]
+- `getCorrelationStyle(value)` - Shared diverging gradient style for correlation matrices (used by CorrelationMatrix + RegimeLens)
+- New in `lib/regime.ts` (pure): `computeFidelityScores`, `annualizedRealizedVol`, `maxDrawdownFromPrices`, `rollingCorrelations`, `generateSyntheticSpotPrices`, `classifyRegime`, `HORIZON_PARAMS`, alignment/downsample helpers. See lib/regime.ts for full list.
 
 ## Deployment
 
@@ -482,3 +502,6 @@ This project does not currently have automated tests. Testing is done manually t
 - RSS news fetching is disabled; `fetchGoldNews()` returns mock data
 - All chart components use Recharts with `isAnimationActive={false}` for performance
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
+- Scenario & stress testing (Feature 3): **pure engine first** — new `createGoldExposureRebalancer` / `createHoldStrategy`, lightly extended `runBacktest(initialPositions?)`, pure shock helpers in strategyEngine.ts. StrategyDashboard hosts "Scenario Lab" internal mode (seed from portfolio, shocks, rebal + benchmarks, final gold oz, repeated NFA + "gross of fees" notes). Never mutate holdings; snapshots only. Matches "update pure engine first" rule.
+- Regime / fidelity analysis: pure computations **must** live in `src/lib/regime.ts`. UI (scores, long matrix, rolling history, live deltas vs tactical corrs, strong NFA disclaimers) lives in `RegimeLens.tsx` (mounted from the "Fidelity & Regimes" tab in GoldComparisonTools). Spot gold long history is **always synthesized** — every label and interpretation box must surface "synthesized / estimated / model". CorrelationMatrix remains the short-term tactical view; the new tab provides the structural extension.
+- When editing GoldComparisonTools, keep the 5-tab structure and ensure the lightweight fidelity callout in the overlay tab re-uses the already-fetched overlayData + pearsonCorrelation (no extra fetches).

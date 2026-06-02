@@ -2,6 +2,34 @@ import type { PriceData, GoldSpot, MetalSpot, NewsItem, SparklinePoint } from '.
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
+/**
+ * Reusable thin wrapper for CoinGecko /coins/{id}/market_chart.
+ * Returns the raw [ts, price][] or [] on error (caller decides fallback).
+ * Respects AbortSignal and optional demo API key header.
+ * Used by overlay, trade replay, performance, and new regime/fidelity analysis.
+ */
+export async function fetchMarketChartSeries(
+  cgId: string,
+  days: string,
+  interval: string,
+  signal?: AbortSignal,
+  apiKey?: string
+): Promise<[number, number][]> {
+  const headers: HeadersInit = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
+  try {
+    const res = await fetch(
+      `${COINGECKO_BASE}/coins/${cgId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`,
+      { signal, headers }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { prices: [number, number][] };
+    return json.prices ?? [];
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') throw err;
+    return [];
+  }
+}
+
 // Generate mock sparkline for fallback/testing
 function mockSparkline(basePrice: number, points = 24): SparklinePoint[] {
   const now = Date.now();

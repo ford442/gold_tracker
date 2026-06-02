@@ -1,46 +1,9 @@
 import { useState } from 'react';
 import { useCorrelations } from '../hooks/useCorrelations';
+import { getCorrelationStyle } from '../lib/utils';
 import type { CorrelationPeriod } from '../types';
 
 const PERIODS: CorrelationPeriod[] = ['1h', '1d', '7d', '30d'];
-
-/**
- * Get gradient background for correlation value
- * Uses a diverging color scale centered at 0
- * -1 (red) → 0 (neutral) → +1 (blue/green)
- */
-function getCorrelationStyle(value: number): { background: string; color: string; glowClass: string } {
-  if (value === 1) {
-    // Perfect positive - diagonal only
-    return { 
-      background: 'rgba(124,92,252,0.3)', 
-      color: '#fff',
-      glowClass: '',
-    };
-  }
-  
-  if (value > 0) {
-    // Positive correlation - blue/purple gradient
-    const intensity = Math.pow(value, 0.7); // Non-linear for better visual distinction
-    return {
-      background: `linear-gradient(135deg, 
-        rgba(124,92,252,${0.15 + intensity * 0.5}) 0%, 
-        rgba(66,153,225,${0.1 + intensity * 0.4}) 100%)`,
-      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
-      glowClass: intensity > 0.75 ? 'corr-high-pos' : '',
-    };
-  } else {
-    // Negative correlation - red/pink gradient
-    const intensity = Math.pow(Math.abs(value), 0.7);
-    return {
-      background: `linear-gradient(135deg, 
-        rgba(255,94,125,${0.15 + intensity * 0.5}) 0%, 
-        rgba(220,38,38,${0.1 + intensity * 0.4}) 100%)`,
-      color: intensity > 0.5 ? '#fff' : 'var(--color-text)',
-      glowClass: intensity > 0.75 ? 'corr-high-neg' : '',
-    };
-  }
-}
 
 export function CorrelationMatrix() {
   const [period, setPeriod] = useState<CorrelationPeriod>('1d');
@@ -214,6 +177,7 @@ export function CorrelationMatrix() {
             Auto-updates every 60s
             {period === '1h' && ' · 1h uses limited hourly samples'}
             {period === '30d' && ' · 30d uses 7d sparkline data'}
+            {' · Longer horizons, Gold Fidelity Scores, and regime shifts: see Fidelity & Regimes tab in Advanced Gold Comparison Tools'}
           </span>
         </div>
       </div>
