@@ -505,3 +505,11 @@ This project does not currently have automated tests. Testing is done manually t
 - Scenario & stress testing (Feature 3): **pure engine first** — new `createGoldExposureRebalancer` / `createHoldStrategy`, lightly extended `runBacktest(initialPositions?)`, pure shock helpers in strategyEngine.ts. StrategyDashboard hosts "Scenario Lab" internal mode (seed from portfolio, shocks, rebal + benchmarks, final gold oz, repeated NFA + "gross of fees" notes). Never mutate holdings; snapshots only. Matches "update pure engine first" rule.
 - Regime / fidelity analysis: pure computations **must** live in `src/lib/regime.ts`. UI (scores, long matrix, rolling history, live deltas vs tactical corrs, strong NFA disclaimers) lives in `RegimeLens.tsx` (mounted from the "Fidelity & Regimes" tab in GoldComparisonTools). Spot gold long history is **always synthesized** — every label and interpretation box must surface "synthesized / estimated / model". CorrelationMatrix remains the short-term tactical view; the new tab provides the structural extension.
 - When editing GoldComparisonTools, keep the 5-tab structure and ensure the lightweight fidelity callout in the overlay tab re-uses the already-fetched overlayData + pearsonCorrelation (no extra fetches).
+
+## Cursor Cloud specific instructions
+
+- Single Vite + React frontend; no backend service needs to run locally. Standard commands live in `package.json` / README (`npm run dev`, `npm run build`, `npm run lint`, `npm run preview`). Dependencies are refreshed by the startup update script (`npm ci`).
+- No secrets/API keys are required: the app falls back to realistic mock data when `VITE_*` keys are absent (see `src/lib/api.ts`), so the dashboard, portfolio, correlations, and backtests are all fully usable for dev/testing without any `.env.local`.
+- `npm run dev` serves on `http://localhost:5173/`. Vite is not bound with `--host` by default, so it only listens on localhost — pass `npm run dev -- --host` if you need to reach it from outside the VM.
+- There are no automated tests; validate changes via `npm run lint`, `npm run build`, and manual browser testing of the dev server.
+- `npm run lint` currently emits one pre-existing `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx` (0 errors) — that warning is expected, not something you introduced.
