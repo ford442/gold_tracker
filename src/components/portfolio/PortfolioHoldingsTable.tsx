@@ -9,6 +9,7 @@ interface Props {
   goldPrice: number | null;
   onEdit: (entry: PortfolioEntry) => void;
   onRemove: (id: string) => void;
+  onSell?: (entry: PortfolioEntry) => void;
 }
 
 export function PortfolioHoldingsTable({
@@ -17,6 +18,7 @@ export function PortfolioHoldingsTable({
   goldPrice,
   onEdit,
   onRemove,
+  onSell,
 }: Props) {
   return (
     <div className="glass-card">
@@ -173,55 +175,76 @@ export function PortfolioHoldingsTable({
                   )}
                 </td>
                 <td style={{ padding: '14px 12px', textAlign: 'center' }}>
-                  {!isCoinbase && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '4px',
-                      }}
-                    >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {!isCoinbase && onSell && entry.amount > 0 && (
                       <button
-                        onClick={() => onEdit(entry)}
-                        aria-label={`Edit ${entry.symbol} position`}
-                        title="Edit position"
+                        onClick={() => onSell(entry)}
+                        aria-label={`Sell ${entry.symbol} position`}
+                        title="Record a sale"
                         style={{
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          color: 'var(--color-gold)',
-                          fontSize: '1.1rem',
-                          padding: '6px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          color: 'var(--color-accent)',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '6px 8px',
                           borderRadius: 'var(--radius-sm)',
                         }}
                       >
-                        ✏️
+                        Sell
                       </button>
-                      <button
-                        onClick={() => onRemove(entry.id)}
-                        aria-label={`Remove ${entry.symbol} position`}
-                        title="Delete position"
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--color-red)',
-                          fontSize: '1.1rem',
-                          padding: '6px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 'var(--radius-sm)',
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  )}
+                    )}
+                    {!isCoinbase && (
+                      <>
+                        <button
+                          onClick={() => onEdit(entry)}
+                          aria-label={`Edit ${entry.symbol} position`}
+                          title="Edit position"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--color-gold)',
+                            fontSize: '1.1rem',
+                            padding: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: 'var(--radius-sm)',
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => onRemove(entry.id)}
+                          aria-label={`Remove ${entry.symbol} position`}
+                          title="Delete position"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--color-red)',
+                            fontSize: '1.1rem',
+                            padding: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: 'var(--radius-sm)',
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
