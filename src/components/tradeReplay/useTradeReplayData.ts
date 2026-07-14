@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { usePriceStore } from '@/store/priceStore';
+import { getMarketChartSeries } from '@lib/marketCache';
 import type { ChartRange, ScenarioMode, SparklinePoint } from '@/types';
 import { RANGE_PARAMS } from './constants';
 import { addProjections, computeReplayStats, generateReplayData } from './replayData';
@@ -22,22 +23,14 @@ export function useTradeReplayData(
 
     const { days, interval } = RANGE_PARAMS[range];
     const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
-    const headers: HeadersInit = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
 
     setIsLoadingHistory(true);
     setHistoricalData(null);
 
-    fetch(
-      `https://api.coingecko.com/api/v3/coins/${selectedAssetId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`,
-      { signal: controller.signal, headers },
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((json: { prices: [number, number][] }) => {
-        const pts: SparklinePoint[] = json.prices.map(([time, price]) => ({ time, price }));
-        setHistoricalData(pts);
+    getMarketChartSeries(selectedAssetId, days, interval, { signal: controller.signal, apiKey })
+      .then((series) => {
+        const pts: SparklinePoint[] = series.map(([time, price]) => ({ time, price }));
+        setHistoricalData(pts.length ? pts : null);
         setIsLoadingHistory(false);
       })
       .catch((err) => {

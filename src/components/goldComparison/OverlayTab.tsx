@@ -6,6 +6,7 @@ import {
 import { usePriceStore } from '@/store/priceStore';
 import { ChartSkeleton } from '../LoadingSkeleton';
 import { pearsonCorrelation } from '@lib/utils';
+import { getMarketChartSeries } from '@lib/marketCache';
 import type { ChartRange } from '@/types';
 import {
   OVERLAY_INSTRUMENTS,
@@ -40,24 +41,23 @@ export function OverlayTab() {
 
     const { days, interval } = RANGE_PARAMS[currentRange];
     const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
-    const headers: HeadersInit = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
 
     const cgInstruments = OVERLAY_INSTRUMENTS.filter((i) => i.cgId !== null);
     const results: Record<string, [number, number][]> = {};
 
+    const sparklineFallback = (cgId: string): [number, number][] =>
+      (prices[cgId]?.sparkline ?? []).map((p) => [p.time, p.price]);
+
     const fetches = cgInstruments.map(async (inst) => {
       try {
-        const res = await fetch(
-          `https://api.coingecko.com/api/v3/coins/${inst.cgId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`,
-          { signal: controller.signal, headers },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json() as { prices: [number, number][] };
-        results[inst.id] = json.prices;
+        const series = await getMarketChartSeries(inst.cgId!, days, interval, {
+          signal: controller.signal,
+          apiKey,
+        });
+        results[inst.id] = series.length ? series : sparklineFallback(inst.cgId!);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') throw err;
-        const fallback = prices[inst.cgId!]?.sparkline ?? [];
-        results[inst.id] = fallback.map((p) => [p.time, p.price]);
+        results[inst.id] = sparklineFallback(inst.cgId!);
       }
     });
 
@@ -121,6 +121,9 @@ export function OverlayTab() {
   }, [goldSpot?.price, prices]);
 
   useEffect(() => {
+    // fetchOverlayData sets loading state as it kicks off the async load — the
+    // intended pattern (same as useTradeReplayData), not a cascading render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchOverlayData(range);
     return () => abortRef.current?.abort();
   }, [range, fetchOverlayData]);

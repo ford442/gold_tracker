@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { usePriceStore } from '@/store/priceStore';
 import { useCorrelations } from './useCorrelations';
-import { fetchMarketChartSeries } from '@lib/api';
+import { getMarketChartSeries } from '@lib/marketCache';
 import {
   HORIZON_PARAMS,
   generateSyntheticSpotPrices,
@@ -57,7 +57,7 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
     const ids = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'] as const;
 
     Promise.all(
-      ids.map((id) => fetchMarketChartSeries(id, days, interval, controller.signal, apiKey))
+      ids.map((id) => getMarketChartSeries(id, days, interval, { signal: controller.signal, apiKey }))
     )
       .then(([paxgRaw, xautRaw, btcRaw, ethRaw]) => {
         if (controller.signal.aborted) return;

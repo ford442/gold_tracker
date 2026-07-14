@@ -130,6 +130,7 @@ export default defineConfig({
         'src/lib/alertRules.ts',
         'src/lib/paperTrade.ts',
         'src/lib/exchanges.ts',
+        'src/lib/marketCache.ts',
       ],
       exclude: ['src/lib/**/*.test.ts'],
       thresholds: {
