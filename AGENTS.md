@@ -568,7 +568,9 @@ CI (`.github/workflows/ci.yml`) runs lint, test, coverage, and build on every pu
 
 On `main`, the same workflow uploads a `goldtrackr-dist` artifact and deploys via rsync over SSH (deploy key in `SSH_PRIVATE_KEY`; host/user/path in `SSH_HOST`, `SSH_USER`, `SSH_PATH`). Production builds use `base: './'` in `vite.config.ts` for subdirectory hosting — no post-build path rewrites.
 
-Component and E2E tests are not yet in scope — manual verification still applies for UI:
+**Smoke E2E** (Playwright) lives in `e2e/` and runs via `npm run test:e2e` (build → preview → headless Chromium). Coverage: app loads in mock mode, theme (D) + settings (S), section navigation, portfolio add/remove, and a classic strategy backtest. External market APIs (CoinGecko/MetalPrice/allorigins) are blocked per test in `e2e/fixtures.ts`, so runs are deterministic and never touch live services (the app falls back to mock data). Config: `playwright.config.ts`. CI runs it as a dedicated `e2e` job. Screenshot baselines are intentionally off (random mock sparklines) — captures happen only on failure. Prefer accessible-name / role locators, and pick text unique to the target panel (several panels reuse labels like "Max Drawdown").
+
+Component-level tests are still out of scope; for other UI checks:
 
 - `npm run dev` for development testing
 - `npm run preview` for production build verification

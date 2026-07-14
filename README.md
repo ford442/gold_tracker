@@ -127,7 +127,18 @@ npm run test:watch    # watch mode during development
 npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
 ```
 
-Coverage scope includes pure modules (`utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets`, `fiscalYear`, `alertRules`). Network/API client files (`api.ts`, `coinbase.ts`, `supabase.ts`) are excluded — see `vite.config.ts`.
+Coverage scope includes pure modules (`utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets`, `fiscalYear`, `alertRules`, `paperTrade`, `exchanges`, `marketCache`). Network/API client files (`api.ts`, `coinbase.ts`, `supabase.ts`) are excluded — see `vite.config.ts`.
+
+### End-to-end (Playwright)
+
+Smoke E2E tests in `e2e/` cover the critical paths: app loads in mock mode, theme (D) + settings (S), section navigation, portfolio add/remove, and a strategy backtest. External market APIs are blocked per test (`e2e/fixtures.ts`) so runs are deterministic and never hit live CoinGecko/MetalPrice.
+
+```bash
+npm run test:e2e        # build + preview + run smoke suite (headless Chromium)
+npm run test:e2e:ui     # interactive Playwright UI mode
+```
+
+First run needs the browser once: `npx playwright install chromium`. CI runs the suite as a separate `e2e` job on every push and PR.
 
 CI runs `npm run lint`, `npm test`, `npm run test:coverage`, and `npm run build` on every push and pull request to `main`. Lint fails the job on **errors** only; one known warning remains in `StrategyDashboard.tsx` (`react-hooks/exhaustive-deps`).
 
