@@ -45,6 +45,22 @@ export function TradeSuggestionsHeader({
       </h2>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <span
+          title={dryRun
+            ? 'Paper mode: executions are simulated and logged to the Paper Ledger — no live orders.'
+            : 'LIVE mode: executions place real orders on the selected exchange.'}
+          style={{
+            fontSize: 'var(--font-xs)',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: dryRun ? 'var(--color-accent-dim)' : 'rgba(220,38,38,0.12)',
+            color: dryRun ? 'var(--color-accent)' : 'var(--color-red)',
+            fontWeight: 700,
+            letterSpacing: '0.04em',
+          }}
+        >
+          {dryRun ? '🧪 PAPER' : '🚀 LIVE'}
+        </span>
+        <span
           style={{
             fontSize: 'var(--font-xs)',
             padding: '4px 10px',

@@ -70,7 +70,7 @@ export function TradeExecuteControls({
         ) : blocked ? (
           <>⛔ Regime gated — manual review required</>
         ) : dryRun ? (
-          <>🔒 DRY RUN on {selectedExchange.toUpperCase()}</>
+          <>🧪 PAPER TRADE ({selectedExchange.toUpperCase()} fees)</>
         ) : (
           <>🚀 LIVE EXECUTE on {selectedExchange.toUpperCase()}</>
         )}

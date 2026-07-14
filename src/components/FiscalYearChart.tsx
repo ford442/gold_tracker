@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { usePriceStore } from '@/store/priceStore';
 import { ChartSkeleton } from './LoadingSkeleton';
-import { fetchMarketChartSeries } from '@lib/api';
+import { getMarketChartSeries } from '@lib/marketCache';
 import {
   FISCAL_CALENDARS,
   MONTH_NAMES,
@@ -78,7 +78,7 @@ export function FiscalYearChart() {
     setIsLoading(true);
 
     const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
-    fetchMarketChartSeries('pax-gold', 'max', 'daily', controller.signal, apiKey)
+    getMarketChartSeries('pax-gold', 'max', 'daily', { signal: controller.signal, apiKey })
       .then((series) => {
         if (series.length >= 730) {
           setHistory(series);

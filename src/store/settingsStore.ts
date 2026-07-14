@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { LiveTradingExchangeId } from '@lib/exchanges';
 
-export type Exchange = 'coinbase' | 'kraken';
+/** Trading venue id — sourced from the exchange registry (exchanges.ts). */
+export type Exchange = LiveTradingExchangeId;
 
 export interface TradingSettings {
   // Exchange selection

@@ -80,6 +80,7 @@ goldtracker/
 │   │   ├── ArbitrageAlerts.tsx     # Arbitrage opportunity alerts
 │   │   ├── GlobalArbitrageMonitor.tsx # Global arb monitor with synthetic signals
 │   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync (uses portfolio/ folder)
+│   │   ├── PaperLedgerPanel.tsx    # Paper-trade ledger: summary, realized-P&L curve, fills, CSV export, reset
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
 │   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution (uses tradeSuggestions/ folder)
 │   │   ├── NewsFeed.tsx            # News display (mock data)
@@ -126,6 +127,7 @@ goldtracker/
 │   │   ├── alertStore.ts           # Alert notifications
 │   │   ├── alertRulesStore.ts      # User-configured alert rules (persisted)
 │   │   ├── strategyStore.ts        # Strategy backtest config + results (persisted)
+│   │   ├── paperTradeStore.ts      # Paper-trade ledger fills (persisted; append + reset only)
 │   │   └── useAuthStore.ts         # Supabase auth state
 │   ├── services/            # API service layer
 │   │   └── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
@@ -134,22 +136,26 @@ goldtracker/
 │   │   └── TradeSuggestion.ts      # Trade suggestion types
 │   ├── lib/                 # PURE logic + API clients (no React) — unit-tested with Vitest
 │   │   ├── api.ts                  # API fetching functions (CoinGecko, MetalPrice, mock data, mock news)
+│   │   ├── marketCache.ts          # Shared market-history cache: TTL + in-flight dedupe + abort + invalidate (wraps fetchMarketChartSeries)
 │   │   ├── assets.ts               # Single source of truth for tracked assets (ids, symbols, CoinGecko/Coinbase mapping)
 │   │   ├── utils.ts                # Formatting and math utilities
 │   │   ├── metalprice.ts           # Spot metal parsing/normalization helpers
 │   │   ├── fiscalYear.ts           # Pure fiscal-year gold chart math
 │   │   ├── regime.ts               # Pure regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
 │   │   ├── strategyEngine.ts       # Pure backtest engine (arbitrage + mean-reversion + rebalancer + hold)
+│   │   ├── paperTrade.ts           # Pure paper-ledger logic (build fills, average-cost summary, equity curve, CSV)
 │   │   ├── strategyMockTicks.ts    # Mock tick generator for backtests
 │   │   ├── alertRules.ts           # Pure alert-rule evaluation
 │   │   ├── alertNotifications.ts   # Desktop notification helpers
 │   │   ├── priceSnapshot.ts        # Offline price snapshot persistence (PWA)
 │   │   ├── appSections.ts          # Section registry (ids, labels, shortcuts, nav helpers)
 │   │   ├── lazyNamed.ts            # Named-export React.lazy helper
+│   │   ├── exchanges.ts            # PURE venue registry: fees, pairs, auth, capabilities (single source of truth)
+│   │   ├── exchangeAdapters.ts     # ExchangeAdapter interface wrapping Coinbase/Kraken (balances/placeOrder/fees/pairs)
 │   │   ├── supabase.ts             # Supabase client with graceful mock fallback
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
-│   │   └── krakenApi.ts            # Kraken pair mapping and fee comparison utilities
+│   │   └── krakenApi.ts            # Kraken pair mapping; fee comparison now derived from exchanges.ts
 │   ├── App.tsx              # Section shell + keyboard shortcuts
 │   ├── main.tsx             # Entry point (StrictMode)
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
@@ -562,7 +568,9 @@ CI (`.github/workflows/ci.yml`) runs lint, test, coverage, and build on every pu
 
 On `main`, the same workflow uploads a `goldtrackr-dist` artifact and deploys via rsync over SSH (deploy key in `SSH_PRIVATE_KEY`; host/user/path in `SSH_HOST`, `SSH_USER`, `SSH_PATH`). Production builds use `base: './'` in `vite.config.ts` for subdirectory hosting — no post-build path rewrites.
 
-Component and E2E tests are not yet in scope — manual verification still applies for UI:
+**Smoke E2E** (Playwright) lives in `e2e/` and runs via `npm run test:e2e` (build → preview → headless Chromium). Coverage: app loads in mock mode, theme (D) + settings (S), section navigation, portfolio add/remove, and a classic strategy backtest. External market APIs (CoinGecko/MetalPrice/allorigins) are blocked per test in `e2e/fixtures.ts`, so runs are deterministic and never touch live services (the app falls back to mock data). Config: `playwright.config.ts`. CI runs it as a dedicated `e2e` job. Screenshot baselines are intentionally off (random mock sparklines) — captures happen only on failure. Prefer accessible-name / role locators, and pick text unique to the target panel (several panels reuse labels like "Max Drawdown").
+
+Component-level tests are still out of scope; for other UI checks:
 
 - `npm run dev` for development testing
 - `npm run preview` for production build verification
@@ -579,10 +587,13 @@ Component and E2E tests are not yet in scope — manual verification still appli
 - When working with Supabase Edge Functions, use the `jose` library for JWT signing (already configured)
 - Always handle both local and server-secure modes in trading-related components
 - Always handle both Coinbase and Kraken exchanges where applicable
+- **Exchange registry.** `lib/exchanges.ts` (pure, unit-tested, in the coverage gate) is the single source of truth for venue metadata — taker fees, supported pairs, auth method, the direct-PAXG/XAUT flag, and capability flags. To add a venue, add an entry there; the Settings selector, fee table, and fee math all read from it. Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through the `ExchangeAdapter` interface in `lib/exchangeAdapters.ts` (balances/placeOrder/fees/pairs), which wraps the existing Coinbase/Kraken clients — depend on the adapter, not on venue-specific functions. `settingsStore.Exchange` is typed from the registry's `LiveTradingExchangeId`.
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
 - RSS news fetching is disabled; `fetchGoldNews()` returns mock data
+- **Paper trading = dry-run.** When `dryRun` is on, `useTradeExecution` records a simulated fill (pure `buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` and never calls an exchange API — so practice needs no keys and can never place a live order. Every fill is stamped `mode: 'paper'`; the store only appends or resets. Keep the LIVE (🚀) vs PAPER (🧪) distinction explicit in any trading UI. Realized/unrealized P&L, the equity curve, and CSV export all come from pure `lib/paperTrade.ts` — extend there first (it is unit-tested and in the coverage gate).
 - All chart components use Recharts with `isAnimationActive={false}` for performance
+- **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal, apiKey })`. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
 - Scenario & stress testing (Feature 3): **pure engine first** — new `createGoldExposureRebalancer` / `createHoldStrategy`, lightly extended `runBacktest(initialPositions?)`, pure shock helpers in strategyEngine.ts. StrategyDashboard hosts "Scenario Lab" internal mode (seed from portfolio, shocks, rebal + benchmarks, final gold oz, repeated NFA + "gross of fees" notes). Never mutate holdings; snapshots only. Matches "update pure engine first" rule.
 - Regime / fidelity analysis: pure computations **must** live in `src/lib/regime.ts`. UI (scores, long matrix, rolling history, live deltas vs tactical corrs, strong NFA disclaimers) lives in `RegimeLens.tsx` (mounted from the "Fidelity & Regimes" tab in GoldComparisonTools). Spot gold long history is **always synthesized** — every label and interpretation box must surface "synthesized / estimated / model". CorrelationMatrix remains the short-term tactical view; the new tab provides the structural extension.

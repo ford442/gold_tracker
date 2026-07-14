@@ -13,6 +13,7 @@ import {
   type AppSection,
 } from '@lib/appSections';
 import { lazyNamed } from '@lib/lazyNamed';
+import { clearMarketCache } from '@lib/marketCache';
 
 const SettingsModal = lazyNamed(
   () => import('@components/SettingsModal'),
@@ -79,6 +80,7 @@ function App() {
         return;
       }
       if (key === 'r') {
+        clearMarketCache(); // bust cached history so R refreshes prices + charts
         refetch();
         return;
       }

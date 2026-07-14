@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
 import { ASSETS, PERFORMANCE_COMPARISON_ASSET_IDS } from '@lib/assets';
+import { getMarketChartSeries } from '@lib/marketCache';
 import { ChartSkeleton } from './LoadingSkeleton';
 
 const PERFORMANCE_ASSETS = PERFORMANCE_COMPARISON_ASSET_IDS.map((id) => ({
@@ -20,38 +21,48 @@ export function PerformanceComparisonChart() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+
     const loadData = async () => {
       try {
         const days = 14;
         const merged: Record<number, ChartPoint> = {};
 
-        for (const asset of PERFORMANCE_ASSETS) {
-          const res = await fetch(
-            `https://api.coingecko.com/api/v3/coins/${asset.id}/market_chart?vs_currency=usd&days=${days}&interval=daily`
-          );
-          if (!res.ok) throw new Error(`Failed to fetch ${asset.name}`);
-          const json = await res.json();
-          const prices = json.prices.map(([, price]: [number, number]) => price);
+        const seriesByAsset = await Promise.all(
+          PERFORMANCE_ASSETS.map((asset) =>
+            getMarketChartSeries(asset.id, String(days), 'daily', {
+              signal: controller.signal,
+              apiKey,
+            }),
+          ),
+        );
+
+        PERFORMANCE_ASSETS.forEach((asset, ai) => {
+          const prices = seriesByAsset[ai].map(([, price]) => price);
+          if (prices.length === 0) throw new Error(`Failed to fetch ${asset.name}`);
 
           const base = prices[0];
-          prices.forEach((price: number, i: number) => {
+          prices.forEach((price, i) => {
             const pct = ((price - base) / base) * 100;
             if (!merged[i]) {
               merged[i] = { day: new Date(Date.now() - (days - i) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
             }
             merged[i][asset.name] = Math.round(pct * 10) / 10;
           });
-        }
+        });
 
         setData(Object.values(merged));
         setLoading(false);
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Failed to load data');
         setLoading(false);
       }
     };
 
     loadData();
+    return () => controller.abort();
   }, []);
 
   if (loading) {

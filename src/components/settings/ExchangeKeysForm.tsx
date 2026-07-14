@@ -1,4 +1,9 @@
 import type { Exchange } from '@/store/settingsStore';
+import {
+  EXCHANGE_LIST,
+  getExchangeConfig,
+  liveTradingExchanges,
+} from '@lib/exchanges';
 
 interface ExchangeSelectorProps {
   selectedExchange: Exchange;
@@ -6,6 +11,9 @@ interface ExchangeSelectorProps {
 }
 
 export function ExchangeSelector({ selectedExchange, onExchangeChange }: ExchangeSelectorProps) {
+  const selectedConfig = getExchangeConfig(selectedExchange);
+  const plannedVenues = EXCHANGE_LIST.filter((e) => e.status !== 'live' || !e.canTrade);
+
   return (
     <>
       <select
@@ -22,19 +30,83 @@ export function ExchangeSelector({ selectedExchange, onExchangeChange }: Exchang
           cursor: 'pointer',
         }}
       >
-        <option value="coinbase">Coinbase Advanced</option>
-        <option value="kraken">Kraken Pro (recommended for PAXG/XAUT)</option>
+        {liveTradingExchanges().map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.icon} {e.label}
+            {e.directPaxgXaut ? ' — direct PAXG/XAUT' : ''}
+          </option>
+        ))}
+        {plannedVenues.map((e) => (
+          <option key={e.id} value={e.id} disabled>
+            {e.icon} {e.label} (coming soon)
+          </option>
+        ))}
       </select>
-      {selectedExchange === 'kraken' && (
+      {selectedConfig?.directPaxgXaut && (
         <p style={{
           marginTop: '10px',
           fontSize: '0.8rem',
           color: 'var(--color-green)',
         }}>
-          ✅ Kraken offers direct PAXG/XAUT pair with lower fees!
+          ✅ {selectedConfig.shortLabel} offers a direct PAXG/XAUT pair with lower fees!
         </p>
       )}
+
+      <ExchangeFeeTable selectedExchange={selectedExchange} />
     </>
+  );
+}
+
+/** Config-driven venue/fee reference table (issue #33, Phase B: fees from config). */
+function ExchangeFeeTable({ selectedExchange }: { selectedExchange: Exchange }) {
+  return (
+    <div style={{ marginTop: '14px', overflowX: 'auto' }}>
+      <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            {['Venue', 'Taker', 'PAXG↔XAUT', 'Trade'].map((h, i) => (
+              <th
+                key={h}
+                style={{
+                  textAlign: i === 0 ? 'left' : 'right',
+                  padding: '5px 8px',
+                  color: 'var(--color-muted)',
+                  fontWeight: 600,
+                  borderBottom: '1px solid var(--color-border)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {EXCHANGE_LIST.map((e) => {
+            const isSelected = e.id === selectedExchange;
+            return (
+              <tr key={e.id} style={{ background: isSelected ? 'var(--color-accent-dim)' : 'transparent' }}>
+                <td style={{ padding: '5px 8px', color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
+                  {e.icon} {e.shortLabel}
+                  {e.status !== 'live' && (
+                    <span style={{ color: 'var(--color-muted)', fontSize: '0.65rem' }}> · soon</span>
+                  )}
+                </td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', color: 'var(--color-muted)' }}>
+                  {(e.takerFeeBps / 100).toFixed(2)}%
+                </td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', color: e.directPaxgXaut ? 'var(--color-green)' : 'var(--color-muted)' }}>
+                  {e.directPaxgXaut ? '1 leg ✓' : '2 legs'}
+                </td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', color: e.canTrade ? 'var(--color-green)' : 'var(--color-muted)' }}>
+                  {e.canTrade ? 'yes' : '—'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
