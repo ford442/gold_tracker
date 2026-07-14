@@ -162,7 +162,7 @@ function App() {
 
       <footer className="app-footer" role="contentinfo">
         <div style={{ marginBottom: '6px', letterSpacing: '0.02em' }}>
-          Data: CoinGecko · MetalPrice API · Kitco RSS · Auto-refresh every 60s
+          Data: CoinGecko · MetalPrice API · News (mock) · Auto-refresh every 60s
         </div>
         <div style={{ fontSize: '0.68rem', opacity: 0.6 }}>
           Not financial advice · Keys: 1–5 sections · ← → navigate · D theme · R refresh · S settings
