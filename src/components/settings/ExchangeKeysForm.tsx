@@ -125,6 +125,9 @@ interface ApiKeysFormProps {
   saveStatus: 'idle' | 'saving' | 'success' | 'error';
   onTestConnection: () => void;
   onSaveKeys: () => void;
+  onClearKeys: () => void;
+  storedKeySummary: string | null;
+  canClearKeys: boolean;
 }
 
 export function ApiKeysForm({
@@ -142,9 +145,30 @@ export function ApiKeysForm({
   saveStatus,
   onTestConnection,
   onSaveKeys,
+  onClearKeys,
+  storedKeySummary,
+  canClearKeys,
 }: ApiKeysFormProps) {
   return (
     <>
+      {storedKeySummary && (
+        <div
+          style={{
+            padding: '10px 12px',
+            marginBottom: '12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface2)',
+            fontSize: '0.75rem',
+            color: 'var(--color-muted)',
+            fontFamily: 'monospace',
+          }}
+          role="status"
+        >
+          Saved: {storedKeySummary}
+        </div>
+      )}
+
       {selectedExchange === 'coinbase' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div>
@@ -162,6 +186,8 @@ export function ApiKeysForm({
               value={cdpKeyName}
               onChange={(e) => onCdpKeyNameChange(e.target.value)}
               placeholder="organizations/{org_id}/apiKeys/{key_id}"
+              autoComplete="off"
+              spellCheck={false}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -191,6 +217,8 @@ export function ApiKeysForm({
               value={cdpPrivateKey}
               onChange={(e) => onCdpPrivateKeyChange(e.target.value)}
               placeholder="-----BEGIN EC PRIVATE KEY-----&#10;...&#10;-----END EC PRIVATE KEY-----"
+              autoComplete="off"
+              spellCheck={false}
               rows={4}
               style={{
                 width: '100%',
@@ -226,6 +254,8 @@ export function ApiKeysForm({
               value={krakenApiKey}
               onChange={(e) => onKrakenApiKeyChange(e.target.value)}
               placeholder="YOUR_KRAKEN_API_KEY"
+              autoComplete="off"
+              spellCheck={false}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -256,6 +286,8 @@ export function ApiKeysForm({
               value={krakenApiSecret}
               onChange={(e) => onKrakenApiSecretChange(e.target.value)}
               placeholder="YOUR_KRAKEN_API_SECRET"
+              autoComplete="off"
+              spellCheck={false}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -320,6 +352,25 @@ export function ApiKeysForm({
         >
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? '✓ Saved' : isSignedIn ? 'Save Securely' : 'Save Locally'}
         </button>
+
+        {canClearKeys && (
+          <button
+            type="button"
+            onClick={onClearKeys}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-red)',
+              background: 'transparent',
+              color: 'var(--color-red)',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Clear local keys
+          </button>
+        )}
 
         {testStatus === 'success' && (
           <span style={{ fontSize: '0.85rem', color: 'var(--color-green)', fontWeight: 500 }}>

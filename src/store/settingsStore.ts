@@ -35,11 +35,14 @@ interface SettingsState extends TradingSettings {
   setMaxTradeSize: (size: number) => void;
   setDailyLossLimit: (limit: number) => void;
   updateSettings: (settings: Partial<TradingSettings>) => void;
+  /** Wipe exchange credentials from local persistence (does not delete server-side keys). */
+  clearExchangeKeys: () => void;
+  hasLocalExchangeKeys: () => boolean;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Exchange
       selectedExchange: 'coinbase',
       
@@ -68,6 +71,22 @@ export const useSettingsStore = create<SettingsState>()(
       setMaxTradeSize: (size) => set({ maxTradeSize: size }),
       setDailyLossLimit: (limit) => set({ dailyLossLimit: limit }),
       updateSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
+      clearExchangeKeys: () =>
+        set({
+          cdpKeyName: '',
+          cdpPrivateKey: '',
+          krakenApiKey: '',
+          krakenApiSecret: '',
+        }),
+      hasLocalExchangeKeys: (): boolean => {
+        const s = get();
+        return Boolean(
+          s.cdpKeyName.trim()
+          || s.cdpPrivateKey.trim()
+          || s.krakenApiKey.trim()
+          || s.krakenApiSecret.trim(),
+        );
+      },
     }),
     {
       name: 'goldtrackr-settings',

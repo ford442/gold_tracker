@@ -161,6 +161,35 @@ Direction is tracked in [GitHub Issues](https://github.com/ford442/gold_tracker/
 
 See **[code_plan.md](code_plan.md)** for the longer OMS vision with a done-vs-remaining checklist.
 
+## Security
+
+GoldTrackr can store exchange API keys in two modes. **Use server-secure mode for any real trading.**
+
+### Threat model
+
+| Mode | Where keys live | Risk | Recommended use |
+|------|-----------------|------|-----------------|
+| **Local (unsigned)** | Plaintext in `localStorage` via Zustand (`goldtrackr-settings`) | Any XSS on this origin can read keys; shared devices retain keys until cleared | Dry-run / dev only |
+| **Server-secure (signed in)** | AES-GCM encrypted in Supabase; decrypted only inside Edge Functions (`store-key`, `place-trade`) | Keys never re-downloaded to the browser after upload; Supabase account + RLS protect stored ciphertext | Real trading |
+
+**Client assumptions**
+
+- The browser is trusted only for the current session while entering keys.
+- Malicious scripts (XSS), browser extensions, or physical access to an unlocked device can exfiltrate **local** keys.
+- Server-secure mode removes plaintext from the browser after a successful save.
+
+**Operational hygiene**
+
+- Grant **Trade** permission only — never Withdraw or Transfer.
+- Keep **Dry-Run** enabled until connectivity is verified.
+- Use **Clear local keys** in Settings before leaving a shared machine.
+- CI deploy uses an SSH private key (`SSH_PRIVATE_KEY`) and `ssh-keyscan` for host verification — do not use password SSH or `StrictHostKeyChecking=no` in production pipelines.
+- `deploy_old.py` is **deprecated** (hardcoded password, no host key verification). Use `.github/workflows/ci.yml` rsync deploy instead.
+
+### Stretch: ephemeral session unlock
+
+A future enhancement could encrypt keys in `sessionStorage` with a user passphrase (PBKDF2 + AES-GCM) so plaintext never touches `localStorage`. That would still be vulnerable to XSS while the session is unlocked but would reduce idle-device exposure. Server-secure mode remains the preferred path for live trading.
+
 ## Disclaimer
 
 Not financial advice. Data provided for informational purposes only.

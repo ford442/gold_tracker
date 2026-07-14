@@ -9,6 +9,7 @@ import { AuthPanel } from './settings/AuthPanel';
 import { ExchangeSelector, ApiKeysForm } from './settings/ExchangeKeysForm';
 import { RiskManagementPanel, AutoTradePanel } from './settings/DryRunToggles';
 import { AlertRulesSettingsPanel } from './settings/AlertRulesSettingsPanel';
+import { describeStoredKey } from '@lib/keyDisplay';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setCdpPrivateKey,
     setKrakenApiKey,
     setKrakenApiSecret,
+    clearExchangeKeys,
+    hasLocalExchangeKeys,
   } = useSettingsStore();
 
   const { user, signOut, init: initAuth } = useAuthStore();
@@ -71,19 +74,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleSaveKeys = async () => {
     setSaveStatus('saving');
     try {
-      if (selectedExchange === 'coinbase') {
-        setCdpKeyName(cdpKeyName);
-        setCdpPrivateKey(cdpPrivateKey);
-      } else {
-        setKrakenApiKey(krakenApiKey);
-        setKrakenApiSecret(krakenApiSecret);
-      }
-
       if (user) {
         const keys: Record<string, string> = selectedExchange === 'coinbase'
           ? { cdpKeyName, cdpPrivateKey }
           : { krakenApiKey, krakenApiSecret };
         await tradeService.storeKeys(selectedExchange, keys);
+        clearExchangeKeys();
+        setLocalCdpKeyName('');
+        setLocalCdpPrivateKey('');
+        setLocalKrakenKey('');
+        setLocalKrakenSecret('');
+      } else if (selectedExchange === 'coinbase') {
+        setCdpKeyName(cdpKeyName);
+        setCdpPrivateKey(cdpPrivateKey);
+      } else {
+        setKrakenApiKey(krakenApiKey);
+        setKrakenApiSecret(krakenApiSecret);
       }
 
       setSaveStatus('success');
@@ -101,6 +107,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setLocalKrakenKey('');
     setLocalKrakenSecret('');
   };
+
+  const handleClearKeys = () => {
+    if (!window.confirm('Remove exchange API keys from this browser? Server-encrypted keys (if any) are not deleted.')) {
+      return;
+    }
+    clearExchangeKeys();
+    setLocalCdpKeyName('');
+    setLocalCdpPrivateKey('');
+    setLocalKrakenKey('');
+    setLocalKrakenSecret('');
+    setTestStatus('idle');
+    setSaveStatus('idle');
+  };
+
+  const storedKeySummary = user && !hasLocalExchangeKeys()
+    ? 'Exchange keys encrypted on server (not stored in this browser)'
+    : describeStoredKey(
+        selectedExchange,
+        {
+          cdpKeyName: storedCdpKeyName,
+          cdpPrivateKey: storedCdpPrivateKey,
+          krakenApiKey: storedKrakenKey,
+          krakenApiSecret: storedKrakenSecret,
+        },
+        user ? 'server' : 'local',
+      );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
@@ -128,6 +160,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           dismissed={securityDismissed}
           onDismiss={() => setSecurityDismissed(true)}
           isSignedIn={!!user}
+          hasLocalKeys={hasLocalExchangeKeys()}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -180,6 +213,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               saveStatus={saveStatus}
               onTestConnection={handleTestConnection}
               onSaveKeys={handleSaveKeys}
+              onClearKeys={handleClearKeys}
+              storedKeySummary={storedKeySummary}
+              canClearKeys={hasLocalExchangeKeys()}
             />
           </AccordionPanel>
 

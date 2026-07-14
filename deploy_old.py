@@ -1,3 +1,9 @@
+"""
+DEPRECATED — do not use in production or CI.
+
+This script uses password authentication and does not verify SSH host keys.
+Use `.github/workflows/ci.yml` (SSH_PRIVATE_KEY + ssh-keyscan) instead.
+"""
 import os
 import paramiko
 import getpass
