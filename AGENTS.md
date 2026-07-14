@@ -149,10 +149,12 @@ goldtracker/
 │   │   ├── priceSnapshot.ts        # Offline price snapshot persistence (PWA)
 │   │   ├── appSections.ts          # Section registry (ids, labels, shortcuts, nav helpers)
 │   │   ├── lazyNamed.ts            # Named-export React.lazy helper
+│   │   ├── exchanges.ts            # PURE venue registry: fees, pairs, auth, capabilities (single source of truth)
+│   │   ├── exchangeAdapters.ts     # ExchangeAdapter interface wrapping Coinbase/Kraken (balances/placeOrder/fees/pairs)
 │   │   ├── supabase.ts             # Supabase client with graceful mock fallback
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
-│   │   └── krakenApi.ts            # Kraken pair mapping and fee comparison utilities
+│   │   └── krakenApi.ts            # Kraken pair mapping; fee comparison now derived from exchanges.ts
 │   ├── App.tsx              # Section shell + keyboard shortcuts
 │   ├── main.tsx             # Entry point (StrictMode)
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
@@ -582,6 +584,7 @@ Component and E2E tests are not yet in scope — manual verification still appli
 - When working with Supabase Edge Functions, use the `jose` library for JWT signing (already configured)
 - Always handle both local and server-secure modes in trading-related components
 - Always handle both Coinbase and Kraken exchanges where applicable
+- **Exchange registry.** `lib/exchanges.ts` (pure, unit-tested, in the coverage gate) is the single source of truth for venue metadata — taker fees, supported pairs, auth method, the direct-PAXG/XAUT flag, and capability flags. To add a venue, add an entry there; the Settings selector, fee table, and fee math all read from it. Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through the `ExchangeAdapter` interface in `lib/exchangeAdapters.ts` (balances/placeOrder/fees/pairs), which wraps the existing Coinbase/Kraken clients — depend on the adapter, not on venue-specific functions. `settingsStore.Exchange` is typed from the registry's `LiveTradingExchangeId`.
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
 - RSS news fetching is disabled; `fetchGoldNews()` returns mock data

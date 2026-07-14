@@ -10,7 +10,7 @@
  * mistaken for a real one.
  */
 
-import { EXCHANGE_COST_PRESETS } from './strategyEngine';
+import { takerFeeBps } from './exchanges';
 import { fromSymbol } from './assets';
 
 export type PaperExchange = 'coinbase' | 'kraken';
@@ -49,9 +49,9 @@ export interface PaperFill {
   reason?: string;
 }
 
-/** Per-leg fee basis points for an exchange (reuses the backtest cost presets). */
+/** Per-leg fee basis points for an exchange (from the venue registry). */
 export function feeBpsForExchange(exchange: PaperExchange): number {
-  return EXCHANGE_COST_PRESETS[exchange]?.feeBps ?? EXCHANGE_COST_PRESETS.coinbase.feeBps;
+  return takerFeeBps(exchange);
 }
 
 /** Estimate the exchange fee (USD) for a notional at a given bps. */

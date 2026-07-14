@@ -5,8 +5,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { usePriceStore } from '@/store/priceStore';
 import { usePaperTradeStore } from '@/store/paperTradeStore';
 import { tradeService } from '@/services/tradeService';
-import { placeOrder } from '@lib/coinbaseTrader';
 import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
+import { getAdapter } from '@lib/exchangeAdapters';
 import { baseSymbolFromProductId, buildPaperFill } from '@lib/paperTrade';
 import { fromSymbol } from '@lib/assets';
 import type { TradeSuggestion } from '@/types/TradeSuggestion';
@@ -80,15 +80,17 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
       if (user) {
         result = await tradeService.executeTrade(order, dryRun, selectedExchange);
       } else {
-        if (selectedExchange === 'kraken') {
-          toast.error('Kraken trading requires Supabase login. Please sign in in Settings.', {
-            id: toastId,
-          });
+        const adapter = getAdapter(selectedExchange);
+        if (!adapter || !adapter.config.canTrade || selectedExchange === 'kraken') {
+          toast.error(
+            `${adapter?.config.label ?? selectedExchange} trading requires Supabase login. Please sign in in Settings.`,
+            { id: toastId },
+          );
           setExecutingId(null);
           onKrakenAuthRequired();
           return;
         }
-        result = await placeOrder(order, dryRun);
+        result = await adapter.placeOrder(order, dryRun, {});
       }
 
       if (result.success) {

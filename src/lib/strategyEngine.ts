@@ -3,6 +3,8 @@
 // Pure TypeScript; no React imports. All simulation logic lives here.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { takerFeeBps } from './exchanges';
+
 // ─── Public Types ────────────────────────────────────────────────────────────
 
 /** A single price snapshot across one or more assets at a given moment. */
@@ -29,14 +31,14 @@ export interface CostModel {
 export const DEFAULT_COST_MODEL: CostModel = { feeBps: 0, slippageBps: 0, exchange: 'custom' };
 
 /**
- * Exchange fee presets aligned with live routing notes:
- * Coinbase ~0.6% per leg (≈1.2% round-trip PAXG→USD→XAUT);
- * Kraken ~0.26% for a direct PAXG/XAUT leg.
+ * Exchange fee presets, sourced from the venue registry (`exchanges.ts`) so
+ * fees live in one config: Coinbase ~0.6% per leg (≈1.2% round-trip
+ * PAXG→USD→XAUT); Kraken ~0.26% for a direct PAXG/XAUT leg.
  */
 export const EXCHANGE_COST_PRESETS = {
   none: { feeBps: 0, slippageBps: 0, exchange: 'custom' } satisfies CostModel,
-  coinbase: { feeBps: 60, slippageBps: 0, exchange: 'coinbase' } satisfies CostModel,
-  kraken: { feeBps: 26, slippageBps: 0, exchange: 'kraken' } satisfies CostModel,
+  coinbase: { feeBps: takerFeeBps('coinbase'), slippageBps: 0, exchange: 'coinbase' } satisfies CostModel,
+  kraken: { feeBps: takerFeeBps('kraken'), slippageBps: 0, exchange: 'kraken' } satisfies CostModel,
 } as const;
 
 export type ExchangeCostPreset = keyof typeof EXCHANGE_COST_PRESETS;

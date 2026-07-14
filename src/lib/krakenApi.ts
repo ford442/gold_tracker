@@ -3,6 +3,8 @@
  * Note: Actual trading happens server-side in Edge Functions for security
  */
 
+import { roundTripPaxgXautFeeBps } from './exchanges';
+
 export interface KrakenOrder {
   pair: string;           // e.g., "PAXGUSD", "XAUTUSD", "PAXGXAUT"
   type: 'buy' | 'sell';
@@ -74,13 +76,12 @@ export function calculateKrakenSavings(spreadPercent: number): {
 } {
   void spreadPercent;
   const tradeSize = 1000; // USD assumption for calc
-  
-  // Coinbase Advanced: 0.6% taker fee per trade = 1.2% total
-  const coinbaseFee = tradeSize * 0.012;
-  
-  // Kraken: 0.26% taker fee for one direct trade
-  const krakenFee = tradeSize * 0.0026;
-  
+
+  // Fees sourced from the venue registry (exchanges.ts):
+  // Coinbase routes PAXG→USD→XAUT (2 legs); Kraken uses a direct pair (1 leg).
+  const coinbaseFee = tradeSize * roundTripPaxgXautFeeBps('coinbase') / 10_000;
+  const krakenFee = tradeSize * roundTripPaxgXautFeeBps('kraken') / 10_000;
+
   return {
     coinbaseCost: coinbaseFee,
     krakenCost: krakenFee,
