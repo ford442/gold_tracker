@@ -80,6 +80,7 @@ goldtracker/
 │   │   ├── ArbitrageAlerts.tsx     # Arbitrage opportunity alerts
 │   │   ├── GlobalArbitrageMonitor.tsx # Global arb monitor with synthetic signals
 │   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync (uses portfolio/ folder)
+│   │   ├── PaperLedgerPanel.tsx    # Paper-trade ledger: summary, realized-P&L curve, fills, CSV export, reset
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
 │   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution (uses tradeSuggestions/ folder)
 │   │   ├── NewsFeed.tsx            # News display (mock data)
@@ -126,6 +127,7 @@ goldtracker/
 │   │   ├── alertStore.ts           # Alert notifications
 │   │   ├── alertRulesStore.ts      # User-configured alert rules (persisted)
 │   │   ├── strategyStore.ts        # Strategy backtest config + results (persisted)
+│   │   ├── paperTradeStore.ts      # Paper-trade ledger fills (persisted; append + reset only)
 │   │   └── useAuthStore.ts         # Supabase auth state
 │   ├── services/            # API service layer
 │   │   └── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
@@ -140,6 +142,7 @@ goldtracker/
 │   │   ├── fiscalYear.ts           # Pure fiscal-year gold chart math
 │   │   ├── regime.ts               # Pure regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
 │   │   ├── strategyEngine.ts       # Pure backtest engine (arbitrage + mean-reversion + rebalancer + hold)
+│   │   ├── paperTrade.ts           # Pure paper-ledger logic (build fills, average-cost summary, equity curve, CSV)
 │   │   ├── strategyMockTicks.ts    # Mock tick generator for backtests
 │   │   ├── alertRules.ts           # Pure alert-rule evaluation
 │   │   ├── alertNotifications.ts   # Desktop notification helpers
@@ -582,6 +585,7 @@ Component and E2E tests are not yet in scope — manual verification still appli
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
 - RSS news fetching is disabled; `fetchGoldNews()` returns mock data
+- **Paper trading = dry-run.** When `dryRun` is on, `useTradeExecution` records a simulated fill (pure `buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` and never calls an exchange API — so practice needs no keys and can never place a live order. Every fill is stamped `mode: 'paper'`; the store only appends or resets. Keep the LIVE (🚀) vs PAPER (🧪) distinction explicit in any trading UI. Realized/unrealized P&L, the equity curve, and CSV export all come from pure `lib/paperTrade.ts` — extend there first (it is unit-tested and in the coverage gate).
 - All chart components use Recharts with `isAnimationActive={false}` for performance
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
 - Scenario & stress testing (Feature 3): **pure engine first** — new `createGoldExposureRebalancer` / `createHoldStrategy`, lightly extended `runBacktest(initialPositions?)`, pure shock helpers in strategyEngine.ts. StrategyDashboard hosts "Scenario Lab" internal mode (seed from portfolio, shocks, rebal + benchmarks, final gold oz, repeated NFA + "gross of fees" notes). Never mutate holdings; snapshots only. Matches "update pure engine first" rule.
