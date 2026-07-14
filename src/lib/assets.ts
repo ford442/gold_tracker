@@ -216,6 +216,15 @@ export function isGoldSleeve(assetId: string): boolean {
   return (GOLD_SLEEVE_ASSET_IDS as readonly string[]).includes(assetId);
 }
 
+/**
+ * Fine troy ounces represented by a gold-sleeve holding.
+ * PAXG, XAUT, and spot XAU are modeled as 1 oz per unit — educational estimate only.
+ */
+export function fineGoldOzForHolding(assetId: string, units: number): number {
+  if (!isGoldSleeve(assetId) || !Number.isFinite(units) || units <= 0) return 0;
+  return units;
+}
+
 export function isStablecoin(assetId: string): boolean {
   return getAsset(assetId)?.category === 'stablecoin';
 }

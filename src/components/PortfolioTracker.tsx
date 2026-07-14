@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import { usePriceStore } from '@/store/priceStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -10,15 +11,29 @@ import { PortfolioEntryForm } from '@components/portfolio/PortfolioEntryForm';
 import { PortfolioSummary } from '@components/portfolio/PortfolioSummary';
 import { PortfolioEmptyState } from '@components/portfolio/PortfolioEmptyState';
 import { PortfolioHoldingsTable } from '@components/portfolio/PortfolioHoldingsTable';
+import { PortfolioGoldOzWidget } from '@components/portfolio/PortfolioGoldOzWidget';
+import { PortfolioCostBasisPanel } from '@components/portfolio/PortfolioCostBasisPanel';
+import { PortfolioSellForm } from '@components/portfolio/PortfolioSellForm';
 import {
   DEFAULT_FORM,
   DEMO_POSITION,
   getCurrentPrice,
   type PortfolioFormState,
 } from '@components/portfolio/portfolioUtils';
+import type { PortfolioEntry } from '@/types';
 
 export function PortfolioTracker() {
-  const { entries, addEntry, updateEntry, removeEntry, syncCoinbaseBalances } = usePortfolioStore();
+  const {
+    entries,
+    realizedGains,
+    costBasisMethod,
+    setCostBasisMethod,
+    addEntry,
+    updateEntry,
+    removeEntry,
+    sellUnits,
+    syncCoinbaseBalances,
+  } = usePortfolioStore();
   const { prices, goldSpot } = usePriceStore();
   const { cdpKeyName, cdpPrivateKey } = useSettingsStore();
   const goldPrice = goldSpot?.price ?? null;
@@ -33,10 +48,19 @@ export function PortfolioTracker() {
   const [form, setForm] = useState<PortfolioFormState>(DEFAULT_FORM);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [sellingEntry, setSellingEntry] = useState<PortfolioEntry | null>(null);
 
   const getPriceForAssetId = useCallback(
     (assetId: string) => getCurrentPrice(assetId, prices, goldPrice),
     [prices, goldPrice],
+  );
+
+  const getPriceForSymbol = useCallback(
+    (symbol: string) => {
+      const assetId = resolvePortfolioAssetId(symbol);
+      return assetId ? getPriceForAssetId(assetId) : 0;
+    },
+    [getPriceForAssetId],
   );
 
   useEffect(() => {
@@ -70,6 +94,7 @@ export function PortfolioTracker() {
       buyPrice: entry.buyPrice.toString(),
     });
     setEditingId(entry.id);
+    setSellingEntry(null);
     setShowForm(true);
   };
 
@@ -82,6 +107,17 @@ export function PortfolioTracker() {
   const handleAddDemo = () => {
     addEntry({ ...DEMO_POSITION, source: 'manual' });
     setShowDemo(true);
+  };
+
+  const handleSell = (units: number, salePrice: number, specLotIds?: string[]) => {
+    if (!sellingEntry) return;
+    const result = sellUnits(sellingEntry.id, units, salePrice, specLotIds);
+    if (result.ok) {
+      toast.success(`Recorded sale of ${units} ${sellingEntry.symbol}`);
+      setSellingEntry(null);
+    } else {
+      toast.error(result.error);
+    }
   };
 
   const totalValue = entries.reduce((sum, e) => {
@@ -102,6 +138,9 @@ export function PortfolioTracker() {
   }, 0);
   const goldPct = totalValue > 0 ? (goldValue / totalValue) * 100 : 0;
   const cryptoPct = 100 - goldPct;
+
+  const sellingMark =
+    sellingEntry != null ? getPriceForSymbol(sellingEntry.symbol) : 0;
 
   return (
     <section aria-label="Portfolio Tracker" style={{ marginBottom: 'var(--space-2xl)' }}>
@@ -127,14 +166,34 @@ export function PortfolioTracker() {
         />
       )}
 
-      {entries.length > 0 && (
-        <PortfolioSummary
-          totalValue={totalValue}
-          totalPnL={totalPnL}
-          totalPnLPct={totalPnLPct}
-          goldPct={goldPct}
-          cryptoPct={cryptoPct}
+      {sellingEntry && (
+        <PortfolioSellForm
+          entry={sellingEntry}
+          method={costBasisMethod}
+          defaultSalePrice={sellingMark}
+          onCancel={() => setSellingEntry(null)}
+          onSell={handleSell}
         />
+      )}
+
+      {entries.length > 0 && (
+        <>
+          <PortfolioGoldOzWidget entries={entries} />
+          <PortfolioSummary
+            totalValue={totalValue}
+            totalPnL={totalPnL}
+            totalPnLPct={totalPnLPct}
+            goldPct={goldPct}
+            cryptoPct={cryptoPct}
+          />
+          <PortfolioCostBasisPanel
+            entries={entries}
+            realizedGains={realizedGains}
+            costBasisMethod={costBasisMethod}
+            onMethodChange={setCostBasisMethod}
+            getPrice={getPriceForSymbol}
+          />
+        </>
       )}
 
       {entries.length === 0 ? (
@@ -151,6 +210,11 @@ export function PortfolioTracker() {
           goldPrice={goldPrice}
           onEdit={handleEdit}
           onRemove={removeEntry}
+          onSell={(entry) => {
+            setSellingEntry(entry);
+            setShowForm(false);
+            setEditingId(null);
+          }}
         />
       )}
     </section>

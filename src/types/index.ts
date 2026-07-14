@@ -44,6 +44,34 @@ export interface CorrelationMatrix {
   matrix: number[][];
 }
 
+/** Lot-level cost basis for a single acquisition tranche. */
+export interface PortfolioLot {
+  id: string;
+  units: number;
+  costPerUnit: number;
+  /** ISO-8601 acquisition timestamp. */
+  acquiredAt: string;
+  note?: string;
+}
+
+export type CostBasisMethod = 'FIFO' | 'HIFO' | 'SpecID';
+
+/** Journal row when units are sold and gain/loss is realized. */
+export interface RealizedGainEvent {
+  id: string;
+  timestamp: string;
+  entryId: string;
+  symbol: string;
+  unitsSold: number;
+  salePricePerUnit: number;
+  proceedsUsd: number;
+  costBasisUsd: number;
+  realizedGainUsd: number;
+  costBasisMethod: CostBasisMethod;
+  lotConsumptions: { lotId: string; units: number; costPerUnit: number }[];
+  note?: string;
+}
+
 export interface PortfolioEntry {
   id: string;
   symbol: string;
@@ -52,6 +80,8 @@ export interface PortfolioEntry {
   buyPrice: number;
   /** 'coinbase' entries are auto-synced; 'manual' entries are user-added */
   source?: 'coinbase' | 'manual';
+  /** Lot-level cost basis; migrated from amount+buyPrice when absent. */
+  lots?: PortfolioLot[];
 }
 
 export interface AlertItem {
