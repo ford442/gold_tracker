@@ -48,61 +48,109 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 | Coinbase (CDP) | Trading execution + account balances | N/A |
 | Kraken | Trading execution (direct PAXG/XAUT pair) | N/A |
 
+## Architecture Layers
+
+Data flows one way. **Add new capability pure-logic-first**, then expose it upward:
+
+```
+src/lib/  (pure, unit-tested)  →  src/hooks/  (React)  →  src/store/  (Zustand, single source of truth)  →  src/components/  (thin UI)
+```
+
+- **`src/lib/`** — no React imports. Math, API clients, asset registry, strategy/regime/fiscal engines. Covered by Vitest.
+- **`src/hooks/`** — polling, derivation, and side effects; call `lib` and write to stores.
+- **`src/store/`** — Zustand stores hold canonical state; components read from here, never fetch directly.
+- **`src/components/`** — presentational; one lazy section mounts at a time.
+
+Roadmap and larger design direction live in the repo's [open issues](https://github.com/ford442/gold_tracker/issues) and [code_plan.md](code_plan.md) (OMS vision with a done-vs-remaining checklist).
+
 ## Project Structure
+
+The UI is organized as a **section shell** (`App.tsx`) that mounts exactly one of five lazy sections at a time (`src/components/sections/`). Large panels are split into feature sub-folders. See the "Bundle / code splitting" section below.
 
 ```
 goldtracker/
 ├── src/
 │   ├── components/          # React components
+│   │   ├── AppNav.tsx              # Section-based top navigation (Overview/Analytics/Portfolio/Strategies/Markets)
 │   │   ├── Dashboard.tsx           # Main price display grid with countdown
 │   │   ├── PriceCard.tsx           # Individual crypto price card
 │   │   ├── GoldSpotCard.tsx        # Spot gold price card
-│   │   ├── CorrelationMatrix.tsx   # Price correlation visualization
+│   │   ├── PreciousMetalsPanel.tsx # Spot silver/platinum/palladium (+ gold) cards & charts
+│   │   ├── CorrelationMatrix.tsx   # Short-term tactical price correlation visualization
 │   │   ├── ArbitrageAlerts.tsx     # Arbitrage opportunity alerts
-│   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync
-│   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution
-│   │   ├── NewsFeed.tsx            # News display (mock data)
-│   │   ├── SettingsModal.tsx       # Trading settings + auth modal (accordion UI)
-│   │   ├── DarkModeToggle.tsx      # Theme switcher
-│   │   ├── StrategyDashboard.tsx   # Backtest configurator + equity curve + trade log
 │   │   ├── GlobalArbitrageMonitor.tsx # Global arb monitor with synthetic signals
-│   │   ├── TradeReplayChart.tsx    # Trade replay with projections and buy/sell markers
-│   │   ├── PerformanceComparisonChart.tsx # 14-day normalized returns chart
-│   │   ├── GoldComparisonTools.tsx   # Advanced multi-tab comparison (now includes Fidelity & Regimes tab)
+│   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync (uses portfolio/ folder)
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
+│   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution (uses tradeSuggestions/ folder)
+│   │   ├── NewsFeed.tsx            # News display (mock data)
+│   │   ├── SettingsModal.tsx       # Trading settings + auth modal (uses settings/ folder)
+│   │   ├── DarkModeToggle.tsx      # Theme switcher
+│   │   ├── StrategyDashboard.tsx   # Backtest + Scenario Lab (uses strategy/ folder)
+│   │   ├── TradeReplayChart.tsx    # Trade replay with projections and buy/sell markers (uses tradeReplay/ folder)
+│   │   ├── PerformanceComparisonChart.tsx # 14-day normalized returns chart
+│   │   ├── FiscalYearChart.tsx     # Fiscal-year gold performance chart (pure math in lib/fiscalYear.ts)
+│   │   ├── GoldComparisonTools.tsx # Advanced 5-tab comparison (incl. Fidelity & Regimes tab; uses goldComparison/ folder)
 │   │   ├── RegimeLens.tsx          # Fidelity & Regimes tab content (scores, long matrix, rolling corr history, live deltas, NFA framing)
-│   │   └── LoadingSkeleton.tsx     # Skeleton loading components (Skeleton, ChartSkeleton, TableSkeleton, CardSkeleton)
+│   │   ├── OfflineBanner.tsx       # PWA offline indicator
+│   │   ├── LazyPanel.tsx / SectionFallback.tsx / LoadingSkeleton.tsx # Lazy-load + skeleton helpers
+│   │   ├── sections/               # One-per-view shells (mounted lazily by App.tsx)
+│   │   │   ├── OverviewSection.tsx      # Dashboard + PreciousMetals + TradeSuggestions + ArbitrageAlerts
+│   │   │   ├── AnalyticsSection.tsx     # CorrelationMatrix + GoldComparisonTools + FiscalYearChart + PerformanceComparison
+│   │   │   ├── PortfolioSection.tsx     # PortfolioTracker
+│   │   │   ├── StrategiesSection.tsx    # StrategyDashboard + TradeReplayChart
+│   │   │   └── MarketsSection.tsx       # GlobalArbitrageMonitor + NewsFeed
+│   │   ├── alerts/                 # AlertRuleForm, AlertRulesManager
+│   │   ├── goldComparison/         # 5-tab sub-components (Overlay/Premiums/Currencies/Portfolio + constants/helpers)
+│   │   ├── portfolio/              # Portfolio table/summary/entry-form sub-components + portfolioUtils
+│   │   ├── settings/               # Auth, ExchangeKeys, DryRun, SecurityWarnings panels
+│   │   ├── strategy/               # Backtest config, Scenario Lab, equity curve, trade log sub-components
+│   │   ├── tradeReplay/            # Replay chart, projection controls, replay data/hooks
+│   │   └── tradeSuggestions/       # Suggestion cards, execute controls, useTradeExecution
 │   ├── hooks/               # Custom React hooks
 │   │   ├── useGoldPrices.ts        # Price polling (60s interval)
+│   │   ├── useAppSection.ts        # Active section state (hash-synced)
 │   │   ├── useTradeSuggestions.ts  # Trading signal generation
 │   │   ├── useCorrelations.ts      # Correlation calculations (short-term tactical on sparklines)
 │   │   ├── useRegimeAnalysis.ts    # Long-horizon regime/fidelity data (powers Fidelity & Regimes tab)
-│   │   ├── useArbitrageAlerts.ts   # Arbitrage detection
-│   │   ├── useNews.ts              # News fetching
+│   │   ├── useFidelityScores.ts    # Gold Fidelity Score derivation
+│   │   ├── useStrategyBacktest.ts  # Runs the pure strategyEngine for the dashboard
+│   │   ├── useAlertRules.ts        # Configurable alert-rule evaluation
+│   │   ├── useConnectivityStatus.ts # Online/offline detection for OfflineBanner
+│   │   ├── useNews.ts              # News fetching (5 min, mock)
 │   │   └── useCoinbaseBalances.ts  # Coinbase account balance polling (60s)
 │   ├── store/               # Zustand state stores
-│   │   ├── priceStore.ts           # Price data state
+│   │   ├── priceStore.ts           # Price data state (single source of truth)
 │   │   ├── themeStore.ts           # Dark/light mode (persisted)
 │   │   ├── portfolioStore.ts       # Portfolio entries with Coinbase sync (persisted)
 │   │   ├── settingsStore.ts        # Trading settings + exchange selection (persisted)
 │   │   ├── alertStore.ts           # Alert notifications
+│   │   ├── alertRulesStore.ts      # User-configured alert rules (persisted)
 │   │   ├── strategyStore.ts        # Strategy backtest config + results (persisted)
 │   │   └── useAuthStore.ts         # Supabase auth state
 │   ├── services/            # API service layer
 │   │   └── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
 │   ├── types/               # TypeScript definitions
-│   │   ├── index.ts                # Core types (PriceData, GoldSpot, PortfolioEntry, AlertItem, NewsItem, ThemeMode, Chart types)
+│   │   ├── index.ts                # Core types (PriceData, GoldSpot, MetalSpot, PortfolioEntry, AlertItem, NewsItem, ThemeMode, Chart types)
 │   │   └── TradeSuggestion.ts      # Trade suggestion types
-│   ├── lib/                 # Utilities and API clients
-│   │   ├── api.ts                  # API fetching functions (CoinGecko, MetalPrice, mock data)
+│   ├── lib/                 # PURE logic + API clients (no React) — unit-tested with Vitest
+│   │   ├── api.ts                  # API fetching functions (CoinGecko, MetalPrice, mock data, mock news)
+│   │   ├── assets.ts               # Single source of truth for tracked assets (ids, symbols, CoinGecko/Coinbase mapping)
 │   │   ├── utils.ts                # Formatting and math utilities
+│   │   ├── metalprice.ts           # Spot metal parsing/normalization helpers
+│   │   ├── fiscalYear.ts           # Pure fiscal-year gold chart math
+│   │   ├── regime.ts               # Pure regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
+│   │   ├── strategyEngine.ts       # Pure backtest engine (arbitrage + mean-reversion + rebalancer + hold)
+│   │   ├── strategyMockTicks.ts    # Mock tick generator for backtests
+│   │   ├── alertRules.ts           # Pure alert-rule evaluation
+│   │   ├── alertNotifications.ts   # Desktop notification helpers
+│   │   ├── priceSnapshot.ts        # Offline price snapshot persistence (PWA)
+│   │   ├── appSections.ts          # Section registry (ids, labels, shortcuts, nav helpers)
+│   │   ├── lazyNamed.ts            # Named-export React.lazy helper
 │   │   ├── supabase.ts             # Supabase client with graceful mock fallback
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
-│   │   ├── krakenApi.ts            # Kraken pair mapping and fee comparison utilities
-│   │   ├── strategyEngine.ts       # Pure TypeScript backtest engine (arbitrage + mean-reversion)
-│   │   └── regime.ts               # Pure TypeScript regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
-│   ├── App.tsx              # Main application component with keyboard shortcuts
+│   │   └── krakenApi.ts            # Kraken pair mapping and fee comparison utilities
+│   ├── App.tsx              # Section shell + keyboard shortcuts
 │   ├── main.tsx             # Entry point (StrictMode)
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
 ├── supabase/                # Supabase backend

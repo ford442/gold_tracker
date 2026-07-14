@@ -1,72 +1,78 @@
-# Code Plan for GoldTrackr
+# Code Plan — GoldTrackr OMS Vision
 
-This document captures an architectural review of the existing `gold_tracker` application along with gaps compared to a **professional/business-grade trading system**.  It also outlines what would be required in order to turn the dashboard into a platform capable of executing trades proficiently.
+This document frames GoldTrackr's evolution from a monitoring dashboard toward a **personal-scale order-management system (OMS)** for tokenized gold and crypto. It is a *forward-looking vision*, not a description of the current build — the current build is documented in [README.md](README.md) and [AGENTS.md](AGENTS.md).
+
+> **Scope note.** The goal is a robust *personal* gold/crypto terminal with real dry-run-first execution — **not** an HFT or regulated multi-tenant trading venue. Several rows below (KYC/AML, MiFID/SEC reporting, sub-ms latency) are listed for completeness but are explicitly **out of scope** for this project.
+
+> **Disclaimer.** GoldTrackr is informational/educational and not financial advice. Trading paths default to dry-run.
 
 ---
 
-## 1. Current Application Summary
+## 1. Where We Are vs. Where We're Going
 
-- React + TypeScript single‑page client running in the browser.
-- Displays live spot prices for XAU, PAXG, XAUT, BTC, ETH using CoinGecko and MetalPrice APIs.
-- Computes simple statistics: correlation matrix, sparkline charts.
-- Emits desktop notifications when spread between PAXG/XAUT exceeds 0.5 %.
-- Tracks a manual portfolio with unrealized P&L and exposure percentages.
-- Fetches gold‑related news via Kitco RSS.
-- Dark/light theming persisted in localStorage.
-- No server component; all logic runs client‑side with occasional API calls.
+The original version of this plan claimed GoldTrackr had *no order execution* and *no backend*. **That is no longer true.** GoldTrackr now has Coinbase (CDP) and Kraken execution paths, a Supabase backend with Edge Functions and AES-GCM key storage, a pure-TypeScript backtesting engine, and a regime/fidelity analytics layer. The checklists below reflect that reality.
 
-> **Disclaimer** in README states this is informational and not financial advice.
+### Done ✅ (already shipped)
 
-## 2. Professional/Business Software Characteristics (Not Present)
+- [x] **Live market data** — CoinGecko + MetalPrice with graceful mock fallback (spot gold, PAXG, XAUT, BTC, ETH, BCH, silver/platinum/palladium)
+- [x] **Order execution** — Coinbase CDP (ES256 JWT) and Kraken (direct PAXG/XAUT pair), dry-run by default
+- [x] **Backend services** — Supabase Auth + Postgres + Edge Functions (`store-key`, `place-trade`, `test-connection`)
+- [x] **Secure key storage** — AES-GCM encryption at rest in server-secure mode; RLS policies; keys never re-enter the browser after upload
+- [x] **Back-testing engine** — pure TS `strategyEngine.ts` (arbitrage, mean-reversion, gold-exposure rebalancer, hold) with equity curve, trade log, max drawdown
+- [x] **Scenario / stress testing** — Scenario Lab with macro shocks, portfolio seeding, and rebalance-vs-hold benchmarks
+- [x] **Algorithmic signals** — trade suggestions + arbitrage detection + global arbitrage monitor
+- [x] **Risk framing (basic)** — gold exposure %, crypto beta %, unrealized P&L, gold-exposure rebalancer bands
+- [x] **Regime / fidelity analytics** — volatility/drawdown regime classification, Gold Fidelity Scores, rolling correlations
+- [x] **Portfolio persistence** — Zustand persist + optional Coinbase balance sync
+- [x] **Testing & CI** — Vitest unit tests on pure `src/lib/` modules with coverage gate; lint/test/build on every PR
+- [x] **Alerting** — desktop arbitrage alerts + configurable alert rules
 
-| Area | GoldTrackr (current) | Typical Business/Trading Suite |
-|------|----------------------|--------------------------------|
-| **Order Execution** | None – read‑only price dashboard | Integration with brokers/exchanges (REST/WebSocket), order placement, cancellation, status tracking |
-| **User Management** | No auth; single user stored locally | Multi‑user accounts, authentication, role‑based access, KYC/AML compliance |
-| **Backend Services** | Entirely client‑side | Server or cloud services for data aggregation, order routing, persistence, compute-intensive analytics |
-| **Risk & OMS** | Manual portfolio entry only | Automated risk checks, position limits, margin calculations, order management system (OMS) |
-| **Data & Feeds** | Two public APIs + RSS; 60‑s refresh | Professional quotes/multiplexer feeds (FIX, proprietary), tick‑level data, historical DB for backtesting |
-| **Security** | No encryption; API keys in `.env` if used | Secure storage, encrypted transport, audit logs, intrusion detection |
-| **Reliability & Scaling** | Single browser, no resilience | Redundancy, horizontal scaling, 99.x % SLAs, monitoring/alerting |
-| **Compliance & Logging** | None | Trade surveillance, audit trail, regulatory reporting (MiFID II, SEC, etc.) |
-| **Testing & CI** | Likely minimal/no tests | Extensive unit/integration tests, simulation environments, CI/CD pipelines |
-| **Performance** | 60 s interval refresh; descriptive UI | Sub‑second latencies, high‑frequency handling, optimized GPU/compute pipelines |
+### Remaining ▢ (the OMS gap)
 
-### Missing Functionalities
-- **Back‑testing engine** for evaluating strategies on historical data.
-- **Algorithmic trading framework** (EMA crossover, mean‑reversion, arbitrage bots). 
-- **Connectivity to payment/settlement systems** or cold‑storage for custody.
-- **Compliance features** such as user consent screens or risk disclosures.
+- [ ] **Full order lifecycle** — partial fills, cancellations, reconciliation after outages, resend of lost orders (today: fire-and-report execution)
+- [ ] **Paper-trading ledger** — persist simulated fills and reconcile against portfolio ([#35](https://github.com/ford442/gold_tracker/issues/35))
+- [ ] **Streaming prices** — WebSocket transport with polling fallback for sub-minute updates ([#38](https://github.com/ford442/gold_tracker/issues/38))
+- [ ] **Shared market-history cache** — dedupe CoinGecko chart requests across panels ([#34](https://github.com/ford442/gold_tracker/issues/34))
+- [ ] **Multi-exchange adapter interface** — unify Coinbase/Kraken behind one `ExchangeAdapter`; add venues; feed the global monitor with *real* quotes ([#33](https://github.com/ford442/gold_tracker/issues/33))
+- [ ] **Automated risk engine** — position/exposure limits, stop-loss/take-profit automation, live margin
+- [ ] **Tax-lot accounting** — FIFO/HIFO cost basis, realized-gains journal, CSV export, aggregate fine-gold-oz widget ([#41](https://github.com/ford442/gold_tracker/issues/41))
+- [ ] **E2E test coverage** — Playwright smoke tests over critical user paths with stubbed network ([#36](https://github.com/ford442/gold_tracker/issues/36))
+- [ ] **Hardened key UX** — typed Supabase client, stronger local-mode warnings, optional passphrase-encrypted session unlock ([#40](https://github.com/ford442/gold_tracker/issues/40))
+- [ ] **Monitoring & observability** — connectivity health checks, trade-failure alerts, latency tracking
 
-## 3. Trading Proficiency Assessment
+### Out of scope 🚫 (intentionally not pursued)
 
-As implemented, **GoldTrackr cannot place or manage live trades**.  It is essentially a monitoring/alerting dashboard.  For proficiency in executing trades you would need:
+- Multi-user KYC/AML compliance, role-based access, and account management
+- Regulatory trade surveillance / reporting (MiFID II, SEC)
+- Sub-millisecond / high-frequency execution and co-located infrastructure
+- 99.x% SLA redundancy and horizontal scaling — this is a personal terminal
 
-1. **Broker/exchange API integration.**  Support for limit/market orders, order types, error handling, and rate‑limits.
-2. **Order management layer.**  Track each order's lifecycle, handle partial fills, slippage, cancellations.
-3. **Algorithmic engines.**  Back‑tests, simulation, and production strategies that generate signals automatically.
-4. **Risk management.**  Position and exposure limits, stop‑loss/take‑profit automation, real‑time P&L and margin.
-5. **Persistent trade/history storage.**  Database to record executed trades, performance metrics, tax reports.
-6. **Monitoring/alerting.**  Health checks on connectivity, trade failures, latency spikes.
-7. **Robust error recovery.**  Re‑send lost orders, reconcile positions after outages.
-8. **Security/credentials.**  Safely store API keys, implement 2FA, encrypt sensitive data.
+---
 
-Without these components, the app is unsuitable for professional or business use.  It could, however, serve as a **prototype or educational tool** showing price relationships and manual arbitrage opportunities.
+## 2. Trading-Proficiency Assessment (updated)
 
-## 4. Next Steps to Evolve the Project
+GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies, and stress-test a portfolio. What separates it from a *proficient* OMS is primarily **order-lifecycle robustness** and **automated risk controls**, not the absence of execution or a backend. The prioritized path to close that gap:
 
-1. **Spin up a backend service** (e.g. Node/Express, Python FastAPI) hosted separately.  This allows secure storage of keys and server‑side logic.
-2. **Choose target brokers/exchanges** and implement SDK wrappers (Binance, Coinbase, gold‑specific liquidity providers).  Abstract interfaces for order placement.
-3. **Implement user authentication and data persistence.**  Use PostgreSQL or Supabase (already present) for portfolio/trade records.
-4. **Develop an OMS/Risk module.**  Real‑time position tracking, margin calculation, risk rule engine.
-5. **Add a strategy engine** for simple automated trades, with a back‑testing UI and simulation mode.
-6. **Harden security & compliance.**  Encrypt secrets, add logging, prepare for regulatory requirements.
-7. **Expand data feeds.**  Subscribe to professional price feeds with sub‑second updates.
-8. **Write comprehensive tests** and set up CI/CD pipelines.
+1. **Paper-trading ledger** ([#35](https://github.com/ford442/gold_tracker/issues/35)) — safe practice loop; foundation for realistic fill/PnL history.
+2. **Order lifecycle & reconciliation** — track each order's states, handle partial fills and cancels, reconcile after outages.
+3. **Risk engine** — position/exposure limits and stop-loss/take-profit automation on top of the existing exposure math.
+4. **Streaming data** ([#38](https://github.com/ford442/gold_tracker/issues/38)) + **shared history cache** ([#34](https://github.com/ford442/gold_tracker/issues/34)) — tighter arb/trade UX and fewer rate-limit failures.
+5. **Exchange adapter interface** ([#33](https://github.com/ford442/gold_tracker/issues/33)) — make new venues cheap and feed the arb monitor real quotes.
+
+---
+
+## 3. Architecture Principle
+
+New capability lands **pure-logic-first**:
+
+```
+src/lib (pure, unit-tested) → src/hooks (React) → src/store (Zustand) → src/components (UI)
+```
+
+Keep the strategy engine, regime math, fee helpers, and API clients free of React so they stay testable. See [AGENTS.md](AGENTS.md) for conventions and the layer-by-layer file map.
 
 ---
 
 ### Conclusion
-GoldTrackr is a neat, small‑scale dashboard useful for tracking and visualizing gold/crypto markets.  It **is not yet professional or business software**, particularly because it lacks any trading execution capability and necessary infrastructure for reliability, security, and compliance. Turning it into a proficient trading product would require substantial architectural additions described above.
 
-*This plan can live in the repository as a reference for future development.*
+GoldTrackr has grown from a read-only dashboard into a working personal trading terminal with execution, a backend, backtesting, and regime analytics. The remaining work is an **OMS-hardening** effort — order lifecycle, automated risk, paper trading, streaming data, and test depth — tracked in the repository's [open issues](https://github.com/ford442/gold_tracker/issues). This document should be updated as those items ship.
