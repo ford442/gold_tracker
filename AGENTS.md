@@ -137,6 +137,25 @@ npm run lint
 npm run preview
 ```
 
+## Bundle / code splitting
+
+Production builds use a **section shell** plus **lazy panels** so first paint stays small.
+
+| Layer | Eager (initial) | Lazy (`React.lazy` + `Suspense`) |
+|-------|-----------------|----------------------------------|
+| Shell | `App.tsx` header, `AppNav`, `Dashboard`, price poll hook, theme | — |
+| Sections | — | `OverviewSection`, `AnalyticsSection`, `PortfolioSection`, `StrategiesSection`, `MarketsSection` (only active section mounts) |
+| Panels | `Dashboard` + price cards (above fold) | Below-fold overview panels, all analytics/strategy/market charts, `PortfolioTracker`, `SettingsModal` (on first open) |
+| Vendors | — | `react-vendor`, `recharts`, `supabase`, `jose` via `build.rollupOptions.output.manualChunks` in `vite.config.ts` |
+
+**Helpers:** `src/lib/lazyNamed.ts` (named-export lazy), `src/components/LazyPanel.tsx` (panel + `LoadingSkeleton` fallback), `src/components/SectionFallback.tsx` (section transition).
+
+**Auth bootstrap:** `useAuthStore.init()` is idempotent and runs when `SettingsModal` or `TradeSuggestionsPanel` first mount — not on app shell load — so `@supabase/supabase-js` stays out of the entry chunk until needed.
+
+**Keyboard:** `S` still toggles settings; first open shows `ModalSkeleton` while the settings chunk loads.
+
+**Component size:** Large panels are split into feature folders (`strategy/`, `goldComparison/`, `settings/`, `tradeSuggestions/`, `portfolio/`, `tradeReplay/`). Pure chart/math logic lives in `src/lib/` (e.g. `fiscalYear.ts`, `strategyMockTicks.ts`, `strategyEngine.ts`) with unit tests where non-trivial.
+
 ## Development Conventions
 
 ### TypeScript Configuration
@@ -481,7 +500,22 @@ supabase functions deploy store-key place-trade test-connection
 
 ## Testing
 
-This project does not currently have automated tests. Testing is done manually through:
+Automated unit tests use **Vitest** for pure `src/lib/` modules (strategy engine, regime math, utils, assets, metalprice, kraken fee helpers).
+
+```bash
+npm test              # run once
+npm run test:watch    # watch mode
+npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
+```
+
+Coverage scope: `utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets` (API client files excluded — see `vite.config.ts`).
+
+CI (`.github/workflows/ci.yml`) runs lint, test, coverage, and build on every push and pull request to `main`. Merges are blocked when lint reports errors, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`.
+
+On `main`, the same workflow uploads a `goldtrackr-dist` artifact and deploys via rsync over SSH (deploy key in `SSH_PRIVATE_KEY`; host/user/path in `SSH_HOST`, `SSH_USER`, `SSH_PATH`). Production builds use `base: './'` in `vite.config.ts` for subdirectory hosting — no post-build path rewrites.
+
+Component and E2E tests are not yet in scope — manual verification still applies for UI:
+
 - `npm run dev` for development testing
 - `npm run preview` for production build verification
 - Test trades should always use dry-run mode first
@@ -511,5 +545,5 @@ This project does not currently have automated tests. Testing is done manually t
 - Single Vite + React frontend; no backend service needs to run locally. Standard commands live in `package.json` / README (`npm run dev`, `npm run build`, `npm run lint`, `npm run preview`). Dependencies are refreshed by the startup update script (`npm ci`).
 - No secrets/API keys are required: the app falls back to realistic mock data when `VITE_*` keys are absent (see `src/lib/api.ts`), so the dashboard, portfolio, correlations, and backtests are all fully usable for dev/testing without any `.env.local`.
 - `npm run dev` serves on `http://localhost:5173/`. Vite is not bound with `--host` by default, so it only listens on localhost — pass `npm run dev -- --host` if you need to reach it from outside the VM.
-- There are no automated tests; validate changes via `npm run lint`, `npm run build`, and manual browser testing of the dev server.
+- Validate changes via `npm run lint`, `npm test`, `npm run build`, and manual browser testing of the dev server. CI also runs `npm run test:coverage` with thresholds on pure `src/lib` modules.
 - `npm run lint` currently emits one pre-existing `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx` (0 errors) — that warning is expected, not something you introduced.

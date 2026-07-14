@@ -3,16 +3,9 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { usePortfolioStore } from '../store/portfolioStore';
-import { usePriceStore } from '../store/priceStore';
-
-const AVAILABLE_ASSETS = [
-  { id: 'gold', symbol: 'XAU' },
-  { id: 'pax-gold', symbol: 'PAXG' },
-  { id: 'tether-gold', symbol: 'XAUT' },
-  { id: 'bitcoin', symbol: 'BTC' },
-  { id: 'ethereum', symbol: 'ETH' },
-];
+import { usePortfolioStore } from '@/store/portfolioStore';
+import { usePriceStore } from '@/store/priceStore';
+import { resolvePortfolioAssetId } from '@lib/assets';
 
 function getCurrentPrice(id: string, prices: Record<string, { price: number }>, goldPrice: number | null): number {
   if (id === 'gold') return goldPrice ?? 0;
@@ -55,8 +48,7 @@ export function PnLOverTimeChart() {
     for (let i = 0; i < steps; i++) {
       let totalPnl = 0;
       for (const entry of entries) {
-        const assetId = entry.symbol === 'XAU' ? 'gold'
-          : (AVAILABLE_ASSETS.find(a => a.symbol === entry.symbol)?.id ?? '');
+        const assetId = resolvePortfolioAssetId(entry.symbol);
 
         // Get sparkline data for the asset
         let historicalPrice: number;

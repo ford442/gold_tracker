@@ -21,6 +21,8 @@ export interface GoldSpot {
   change7d: number;
   unit: string; // e.g. "USD/oz"
   sparkline: SparklinePoint[];
+  /** True when price/sparkline are simulated (no live Metalprice feed). */
+  isMock?: boolean;
 }
 
 export interface MetalSpot {
@@ -55,9 +57,12 @@ export interface PortfolioEntry {
 export interface AlertItem {
   id: string;
   message: string;
-  type: 'arbitrage' | 'price' | 'info';
+  type: 'arbitrage' | 'price' | 'fidelity' | 'premium' | 'info';
   timestamp: number;
   spread?: number;
+  value?: number;
+  ruleId?: string;
+  ruleName?: string;
   dismissed: boolean;
 }
 

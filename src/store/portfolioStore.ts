@@ -1,17 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PortfolioEntry } from '../types';
-import { COINBASE_CURRENCY_TO_ASSET_ID, type CoinbaseAccount } from '../lib/coinbase';
-
-// Reverse map: symbol → asset name for known assets
-const ASSET_NAMES: Record<string, string> = {
-  BTC: 'Bitcoin',
-  ETH: 'Ethereum',
-  PAXG: 'PAX Gold',
-  XAUT: 'Tether Gold',
-  USDC: 'USD Coin',
-  XAU: 'Spot Gold',
-};
+import type { PortfolioEntry } from '@/types';
+import { COINBASE_CURRENCY_TO_ASSET_ID, fromCoinbaseCode } from '@lib/assets';
+import type { CoinbaseAccount } from '@lib/coinbase';
 
 interface PortfolioStore {
   entries: PortfolioEntry[];
@@ -71,7 +62,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
           incoming.forEach((amount, code) => {
             const assetId = COINBASE_CURRENCY_TO_ASSET_ID[code];
-            const name = ASSET_NAMES[code] ?? code;
+            const name = fromCoinbaseCode(code)?.name ?? code;
             const existing = existingCoinbase.find((e) => e.symbol === code);
 
             if (existing) {

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { usePriceStore } from '../store/priceStore';
+import { usePriceStore } from '@/store/priceStore';
 import { PriceCard } from './PriceCard';
 import { GoldSpotCard } from './GoldSpotCard';
 import { CardSkeleton } from './LoadingSkeleton';
+import { DASHBOARD_PRICE_ASSET_IDS } from '@lib/assets';
 
-const ORDERED_IDS = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum', 'bitcoin-cash'];
+const ORDERED_IDS = DASHBOARD_PRICE_ASSET_IDS;
 const POLL_INTERVAL = 60; // seconds
 
 export function Dashboard() {
@@ -165,11 +166,7 @@ export function Dashboard() {
       </div>
 
       {/* Price cards grid with reflection zone */}
-      <div className="reflection-zone" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-        gap: 'var(--space-md)',
-      }}>
+      <div className="reflection-zone dashboard-price-grid">
         {/* Loading skeletons */}
         {!hasData && isLoading && (
           <>

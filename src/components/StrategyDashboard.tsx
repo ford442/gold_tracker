@@ -1,537 +1,61 @@
-import { useCallback, useState, useMemo } from 'react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
-} from 'recharts';
-import { toast } from 'react-hot-toast';
-import {
-  runBacktest,
-  createArbitrageStrategy,
-  createMeanReversionStrategy,
-  createHoldStrategy,
-  createGoldExposureRebalancer,
-  applyShocksToTicks,
-  generateBaseScenarioTicks,
-  type BacktestTick,
-  type RebalanceConfig,
-} from '../lib/strategyEngine';
-import { useStrategyStore } from '../store/strategyStore';
-import { usePortfolioStore } from '../store/portfolioStore';
-import { usePriceStore } from '../store/priceStore';
-import { formatPrice, formatPercent } from '../lib/utils';
-
-// Tooltip component
-function TooltipIcon({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  
-  return (
-    <span 
-      style={{ 
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '16px',
-        height: '16px',
-        borderRadius: '50%',
-        background: 'var(--color-surface2)',
-        color: 'var(--color-muted)',
-        fontSize: '0.7rem',
-        cursor: 'help',
-        marginLeft: '6px',
-        position: 'relative',
-        border: '1px solid var(--color-border)'
-      }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-      aria-label="More information"
-    >
-      ?
-      {show && (
-        <span style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'var(--color-surface2)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '8px 12px',
-          fontSize: '0.75rem',
-          color: 'var(--color-text)',
-          whiteSpace: 'nowrap',
-          zIndex: 100,
-          boxShadow: 'var(--shadow-md)',
-          marginBottom: '6px',
-          minWidth: '200px',
-          lineHeight: 1.4
-        }}>
-          {text}
-          <span style={{
-            position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            border: '6px solid transparent',
-            borderTopColor: 'var(--color-border)'
-          }} />
-        </span>
-      )}
-    </span>
-  );
-}
-
-// Validation indicator
-function ValidationIndicator({ valid, message }: { valid: boolean; message?: string }) {
-  return (
-    <span 
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        marginLeft: '6px',
-        fontSize: '0.75rem',
-        color: valid ? 'var(--color-green)' : 'var(--color-red)'
-      }}
-      title={message}
-    >
-      {valid ? '✓' : '✗'}
-    </span>
-  );
-}
-
-// ─── Mock tick generator ──────────────────────────────────────────────────────
-
-function randn(): number {
-  let u = 0, v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-}
-
-const BASE_PRICES: Record<string, number> = {
-  'pax-gold':    3280.5,
-  'tether-gold': 3284.2,
-  'bitcoin':     97450,
-  'ethereum':    3850,
-};
-
-const TICK_COUNT = 720;
-
-function generateMockTicks(
-  strategyType: 'arbitrage' | 'mean-reversion',
-  mrAsset: string,
-): BacktestTick[] {
-  const now = Date.now();
-  const ticks: BacktestTick[] = [];
-
-  if (strategyType === 'arbitrage') {
-    let paxg = BASE_PRICES['pax-gold'];
-    let xaut = BASE_PRICES['tether-gold'];
-
-    for (let i = 0; i < TICK_COUNT; i++) {
-      const timestamp = now - (TICK_COUNT - i) * 3_600_000;
-      paxg *= Math.exp(0.0001 + 0.003 * randn());
-      const isSpreadEvent = Math.random() < 0.08;
-      const noise = isSpreadEvent ? randn() * 0.012 : randn() * 0.0015;
-      xaut = paxg * (1 + noise);
-
-      ticks.push({
-        timestamp,
-        prices: {
-          'pax-gold':    parseFloat(paxg.toFixed(4)),
-          'tether-gold': parseFloat(xaut.toFixed(4)),
-        },
-      });
-    }
-  } else {
-    const asset = mrAsset;
-    const mu = BASE_PRICES[asset] ?? 10_000;
-    const theta = 0.03;
-    const sigma = mu * 0.008;
-    let price = mu;
-
-    for (let i = 0; i < TICK_COUNT; i++) {
-      const timestamp = now - (TICK_COUNT - i) * 3_600_000;
-      price = price + theta * (mu - price) + sigma * randn();
-      price = Math.max(price, mu * 0.5);
-
-      ticks.push({
-        timestamp,
-        prices: { [asset]: parseFloat(price.toFixed(4)) },
-      });
-    }
-  }
-
-  return ticks;
-}
-
-const tooltipContentStyle: React.CSSProperties = {
-  backgroundColor: 'rgba(16,19,35,0.92)',
-  backdropFilter: 'blur(12px)',
-  border: '1px solid rgba(212,175,55,0.18)',
-  borderRadius: 'var(--radius-md)',
-  color: 'var(--color-text)',
-  fontSize: '0.75rem',
-  boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-};
-
-interface StatBoxProps {
-  label: string;
-  value: string;
-  color?: string;
-  subtext?: string;
-}
-
-function StatBox({ label, value, color, subtext }: StatBoxProps) {
-  return (
-    <div style={{
-      background: 'var(--color-surface2)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-md)',
-      padding: '14px 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '6px',
-    }}>
-      <span style={{ 
-        fontSize: 'var(--font-xs)', 
-        color: 'var(--color-muted)', 
-        textTransform: 'uppercase', 
-        letterSpacing: '0.06em',
-        fontWeight: 600
-      }}>
-        {label}
-      </span>
-      <span style={{ 
-        fontSize: 'var(--font-lg)', 
-        fontWeight: 700, 
-        color: color ?? 'var(--color-text)', 
-        fontVariantNumeric: 'tabular-nums' 
-      }}>
-        {value}
-      </span>
-      {subtext && (
-        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>{subtext}</span>
-      )}
-    </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  background: 'var(--color-surface2)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--color-text)',
-  fontSize: 'var(--font-sm)',
-  padding: '8px 12px',
-  width: '100%',
-  outline: 'none',
-  transition: 'border-color 0.15s ease'
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 'var(--font-xs)',
-  color: 'var(--color-muted)',
-  marginBottom: '6px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  fontWeight: 600,
-  display: 'flex',
-  alignItems: 'center'
-};
-
-interface FieldProps {
-  label: string;
-  labelTooltip?: string;
-  value: string | number;
-  onChange: (v: string) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  type?: string;
-  validate?: (v: number) => boolean;
-  validationMessage?: string;
-  suffix?: string;
-}
-
-function Field({
-  label, labelTooltip, value, onChange, min, max, step, type = 'number',
-  validate, validationMessage, suffix
-}: FieldProps) {
-  const numValue = parseFloat(value as string);
-  const isValid = !isNaN(numValue) && (!validate || validate(numValue));
-  
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={labelStyle}>
-        {label}
-        {labelTooltip && <TooltipIcon text={labelTooltip} />}
-      </label>
-      <div style={{ position: 'relative' }}>
-        <input
-          type={type}
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            ...inputStyle,
-            borderColor: value && !isValid ? 'var(--color-red)' : 'var(--color-border)',
-            paddingRight: suffix ? '30px' : '12px'
-          }}
-        />
-        {suffix && (
-          <span style={{
-            position: 'absolute',
-            right: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--color-muted)',
-            fontSize: '0.85rem'
-          }}>
-            {suffix}
-          </span>
-        )}
-        {value && validate && (
-          <ValidationIndicator valid={isValid} message={validationMessage} />
-        )}
-      </div>
-    </div>
-  );
-}
+import { formatPercent } from '@lib/utils';
+import { CostModelSelector } from '@components/strategy/CostModelSelector';
+import { useStrategyBacktest } from '@/hooks/useStrategyBacktest';
+import { BacktestConfigForm } from '@components/strategy/BacktestConfigForm';
+import { ScenarioLabPanel } from '@components/strategy/ScenarioLabPanel';
+import { PerformanceStatBoxes } from '@components/strategy/PerformanceStatBoxes';
+import { EquityCurveChart } from '@components/strategy/EquityCurveChart';
+import { TradeLogTable } from '@components/strategy/TradeLogTable';
+import { Field } from '@components/strategy/StrategyFormPrimitives';
 
 export function StrategyDashboard() {
   const {
-    strategyType, setStrategyType,
-    arbSpreadThreshold, arbTradeSize, arbAsset1, arbAsset2, setArbConfig,
-    mrAsset, mrWindowSize, mrBuyThreshold, mrSellThreshold, mrStopLoss, mrTradeSize, setMrConfig,
-    initialBalance, setInitialBalance,
-    lastResult, setLastResult,
-    isRunning, setIsRunning,
-    // Scenario Lab (Feature 3) — stored in same persisted store
-    scenarioMode, setScenarioMode,
-    selectedScenario, setSelectedScenario,
-    customShocks, setCustomShocks,
-    seedFromPortfolio, setSeedFromPortfolio,
-    extraCashUsd, setExtraCashUsd,
-    dcaUsdPerPeriod, dcaPeriodCount, setDcaParams,
-    lastScenarioResult, setLastScenarioResult,
-  } = useStrategyStore();
-
-  const { entries: portfolioEntries } = usePortfolioStore();
-  const { prices: priceMap, goldSpot } = usePriceStore();
-  const goldPrice = goldSpot?.price ?? null;
-
-  // ─── Scenario Lab data (declared early for handler + render) ──────────────
-  const BUILT_IN_SCENARIOS: Record<string, { label: string; shocks: Record<string, number>; description: string }> = {
-    'flight-to-gold': {
-      label: 'Flight to Gold (safe haven)',
-      shocks: { gold: 1.12, 'pax-gold': 1.105, 'tether-gold': 1.09, bitcoin: 0.75, ethereum: 0.72 },
-      description: 'Spot +12%, crypto-gold follows closely, BTC/ETH −25% (classic diversification stress)',
-    },
-    'crypto-meltup': {
-      label: 'Crypto Risk-On melt-up',
-      shocks: { gold: 0.97, 'pax-gold': 0.96, 'tether-gold': 0.95, bitcoin: 1.35, ethereum: 1.40 },
-      description: 'Gold lags or dips, BTC/ETH surge (crypto-gold behaves more like risk asset)',
-    },
-    'stagflation': {
-      label: 'Stagflation / Inflation hedge',
-      shocks: { gold: 1.08, 'pax-gold': 1.07, 'tether-gold': 1.06, bitcoin: 0.95, ethereum: 0.93 },
-      description: 'Gold +8% as inflation hedge, crypto mostly flat to slightly down',
-    },
-    'corr-spike': {
-      label: 'Risk-off correlation spike',
-      shocks: { gold: 0.85, 'pax-gold': 0.84, 'tether-gold': 0.83, bitcoin: 0.85, ethereum: 0.82 },
-      description: 'All assets down together (~−15–18%) — high correlation stress',
-    },
-    'premium-squeeze': {
-      label: 'Gold premium squeeze + normalize',
-      shocks: { gold: 1.04, 'pax-gold': 0.985, 'tether-gold': 0.99, bitcoin: 1.0, ethereum: 1.0 },
-      description: 'Spot rises while PAXG/XAUT temporarily lag (premium compresses then recovers)',
-    },
-  };
-
-  const isLab = scenarioMode === 'lab';
-  const currentScenario = isLab ? (BUILT_IN_SCENARIOS[selectedScenario] || { label: 'Custom', shocks: customShocks || {}, description: 'User shocks' }) : null;
-
-  function getCurrentPriceForId(assetId: string): number {
-    if (assetId === 'gold' || assetId === 'XAU') return goldPrice || 3290;
-    if (assetId === 'usd-coin' || assetId === 'USDC') return 1;
-    return priceMap[assetId]?.price ?? 0;
-  }
-
-  const portfolioSnapshot = useMemo(() => {
-    if (!seedFromPortfolio || portfolioEntries.length === 0) {
-      return { initialPositions: {} as Record<string, { units: number; avgCost: number }>, portfolioValue: 0, goldOz: 0 };
-    }
-    const initPos: Record<string, { units: number; avgCost: number }> = {};
-    let totalVal = extraCashUsd;
-    let gOz = 0;
-    const goldIds = ['pax-gold', 'tether-gold', 'gold'];
-
-    for (const e of portfolioEntries) {
-      const id = e.symbol === 'XAU' ? 'gold' : (e.symbol.toLowerCase() === 'paxg' ? 'pax-gold' : e.symbol.toLowerCase() === 'xaut' ? 'tether-gold' : e.symbol.toLowerCase());
-      const curP = getCurrentPriceForId(id) || e.buyPrice || 1;
-      const units = e.amount;
-      initPos[id] = { units, avgCost: curP };
-      totalVal += units * curP;
-      if (goldIds.includes(id)) gOz += units;
-    }
-    return { initialPositions: initPos, portfolioValue: totalVal, goldOz: gOz };
-  }, [seedFromPortfolio, portfolioEntries, extraCashUsd, priceMap, goldPrice]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleRunBacktest = useCallback(async () => {
-    if (isRunning) return;
-    setIsRunning(true);
-
-    await new Promise<void>((r) => setTimeout(r, 60));
-
-    try {
-      if (!isLab) {
-        // ── Classic path (unchanged behavior) ─────────────────────────────
-        const ticks = generateMockTicks(strategyType, mrAsset);
-        const strategy = strategyType === 'arbitrage'
-          ? createArbitrageStrategy({
-              asset1: arbAsset1,
-              asset2: arbAsset2,
-              spreadThreshold: arbSpreadThreshold,
-              tradeSize: arbTradeSize,
-            })
-          : createMeanReversionStrategy({
-              asset: mrAsset,
-              windowSize: mrWindowSize,
-              buyThreshold: mrBuyThreshold,
-              sellThreshold: mrSellThreshold,
-              tradeSize: mrTradeSize,
-              stopLoss: mrStopLoss,
-            });
-
-        const result = runBacktest(ticks, strategy, initialBalance);
-        setLastResult(result);
-        toast.success(`Backtest complete — ${result.totalTrades} trades, ${formatPercent(result.totalReturn)} return`, { duration: 4000 });
-      } else {
-        // ── Scenario Lab path (Feature 3) ─────────────────────────────────
-        // 1. Build base ticks (synthetic or attempt lightweight historical via sparkline for short windows)
-        let baseTicks: BacktestTick[] = generateBaseScenarioTicks(720);
-
-        // Simple "historical-ish" base using available sparkline data (short, for demo)
-        const useHistorical = selectedScenario !== 'custom' || Object.keys(customShocks).length > 0; // always try for realism in lab
-        if (useHistorical) {
-          // Build a short multi-asset series from current sparklines (graceful, no extra network for v1)
-          const ids = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'];
-          const series: Record<string, number[]> = {};
-          let minLen = 720;
-          ids.forEach((id) => {
-            const sp = priceMap[id]?.sparkline?.map((p) => p.price) ?? [];
-            series[id] = sp.length ? sp : Array.from({ length: 60 }, (_, i) => (baseTicks[0]?.prices[id] || 1000) * (0.99 + 0.02 * (i % 5)));
-            minLen = Math.min(minLen, series[id].length);
-          });
-          const goldBase = baseTicks[0]?.prices.gold || goldPrice || 3290;
-          const synthGold = Array.from({ length: minLen }, (_, i) => goldBase * (0.995 + 0.01 * Math.sin(i / 4)));
-          baseTicks = Array.from({ length: minLen }, (_, i) => ({
-            timestamp: Date.now() - (minLen - i) * 3600000,
-            prices: {
-              'pax-gold': series['pax-gold'][i] || baseTicks[i % baseTicks.length].prices['pax-gold'],
-              'tether-gold': series['tether-gold'][i] || baseTicks[i % baseTicks.length].prices['tether-gold'],
-              bitcoin: series['bitcoin'][i] || baseTicks[i % baseTicks.length].prices.bitcoin,
-              ethereum: series['ethereum'][i] || baseTicks[i % baseTicks.length].prices.ethereum,
-              gold: synthGold[i],
-            },
-          }));
-        }
-
-        const shocks = selectedScenario === 'custom' ? customShocks : (currentScenario?.shocks ?? customShocks);
-        const shockedTicks = applyShocksToTicks(baseTicks, shocks);
-
-        // 2. Seed from portfolio (or start clean with extra cash)
-        const seedCash = (seedFromPortfolio ? 0 : 0) + extraCashUsd;
-        void seedCash; // may be used for future DCA cash injection
-        const initPos = seedFromPortfolio ? portfolioSnapshot.initialPositions : {};
-        const startCash = seedFromPortfolio
-          ? (portfolioSnapshot.portfolioValue + extraCashUsd)
-          : (initialBalance + extraCashUsd);
-        void startCash;
-
-        // 3. Primary strategy: rebalancer (with optional periodic DCA)
-        const rebalCfg: RebalanceConfig = {
-          goldAssetIds: ['pax-gold', 'tether-gold'],
-          targetGoldPct: 0.55, // sensible educational default (user can imagine different targets)
-          rebalanceBandPct: 0.05,
-        };
-        const strategy = createGoldExposureRebalancer(rebalCfg);
-
-        // If DCA params, wrap with a periodic buyer (simple composition via sequential signals in practice)
-        if (dcaUsdPerPeriod > 0 && dcaPeriodCount > 0) {
-          // For demo we run the rebalancer; DCA is approximated by extra cash + the rebal target pulling it in.
-          // A true combined strategy would be created here; the engine supports multiple signals per tick.
-        }
-
-        const primary = runBacktest(shockedTicks, strategy, Math.max(0, startCash), initPos);
-
-        // 4. Benchmarks (hold + simple all-gold via hold after virtual full sleeve)
-        const hold = runBacktest(shockedTicks, createHoldStrategy(), Math.max(0, startCash), initPos);
-
-        // Store primary as the visible result (lab result)
-        setLastScenarioResult(primary);
-        setLastResult(primary); // also feed the shared curve/log UI
-
-        // Store a tiny benchmark snapshot on the result object via closure (we surface via extra state or just compute in render)
-        // For simplicity we toast the comparison and rely on the comparison strip below.
-        toast.success(`Scenario complete — ${primary.totalTrades} rebal trades, ${formatPercent(primary.totalReturn)} vs hold ${formatPercent(hold.totalReturn)}`, { duration: 5000 });
-      }
-    } catch (err) {
-      console.error('[StrategyDashboard] backtest/scenario error:', err);
-      toast.error('Simulation failed — check console');
-    } finally {
-      setIsRunning(false);
-    }
-  }, [
-    isRunning, isLab, strategyType, arbAsset1, arbAsset2, arbSpreadThreshold, arbTradeSize,
-    mrAsset, mrWindowSize, mrBuyThreshold, mrSellThreshold, mrTradeSize, mrStopLoss,
-    initialBalance, setLastResult, setIsRunning, setLastScenarioResult,
-    selectedScenario, customShocks, currentScenario, extraCashUsd, seedFromPortfolio,
-    portfolioSnapshot, dcaUsdPerPeriod, dcaPeriodCount, priceMap, goldPrice,
-  ]);
+    isLab,
+    scenarioMode,
+    setScenarioMode,
+    strategyType,
+    setStrategyType,
+    arbSpreadThreshold,
+    arbTradeSize,
+    mrAsset,
+    mrWindowSize,
+    mrBuyThreshold,
+    mrSellThreshold,
+    mrStopLoss,
+    mrTradeSize,
+    setArbConfig,
+    setMrConfig,
+    initialBalance,
+    setInitialBalance,
+    lastResult,
+    lastScenarioResult,
+    isRunning,
+    handleRunBacktest,
+    estimatedTradesPerDay,
+    goldPrice,
+    selectedScenario,
+    setSelectedScenario,
+    customShocks,
+    setCustomShocks,
+    currentScenario,
+    seedFromPortfolio,
+    setSeedFromPortfolio,
+    extraCashUsd,
+    setExtraCashUsd,
+    dcaUsdPerPeriod,
+    dcaPeriodCount,
+    setDcaParams,
+    costModelPreset,
+    setCostModelPreset,
+    arbRegimeGateEnabled,
+    regimeGateConfig,
+    setRegimeGateConfig,
+  } = useStrategyBacktest();
 
   const r = lastResult;
-  const returnColor = !r ? 'var(--color-text)'
-    : r.totalReturn >= 0 ? 'var(--color-green)' : 'var(--color-red)';
-  const winRate = r && r.totalTrades > 0
-    ? ((r.winningTrades / r.totalTrades) * 100).toFixed(1) + '%'
-    : '—';
-
-  const equityCurveDisplay = r
-    ? (() => {
-        const curve = r.equityCurve;
-        if (curve.length <= 200) return curve;
-        const step = Math.ceil(curve.length / 200);
-        return curve.filter((_, i) => i % step === 0 || i === curve.length - 1);
-      })()
-    : [];
-
-  const tradeLogDisplay = r
-    ? [...r.trades].reverse().slice(0, 100)
-    : [];
-
-  const mrAssetOptions = [
-    { id: 'bitcoin',     label: 'BTC — Bitcoin' },
-    { id: 'ethereum',    label: 'ETH — Ethereum' },
-    { id: 'pax-gold',    label: 'PAXG — PAX Gold' },
-    { id: 'tether-gold', label: 'XAUT — Tether Gold' },
-  ];
-
-  // Calculate estimated trade frequency
-  const estimatedTradesPerDay = strategyType === 'arbitrage' 
-    ? Math.round((0.08 * 24 * (0.25 / arbSpreadThreshold)) * 10) / 10
-    : Math.round((24 / mrWindowSize) * 10) / 10;
-
-
-  // (effectiveInitialCash removed — startCash computed inside handler)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)', marginBottom: 'var(--space-2xl)' }}>
-
-      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="glass-card" style={{
         padding: 'var(--space-xl)',
         display: 'flex',
@@ -539,7 +63,8 @@ export function StrategyDashboard() {
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: '16px',
-      }}>
+      }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <h2 className="section-heading">
@@ -552,11 +77,11 @@ export function StrategyDashboard() {
               background: 'var(--color-accent-dim)',
               color: 'var(--color-accent)',
               fontWeight: 700,
-              letterSpacing: '0.08em'
-            }}>
+              letterSpacing: '0.08em',
+            }}
+            >
               {isLab ? 'SCENARIO LAB' : 'BACKTEST MODE'}
             </span>
-            {/* Internal mode switch (Feature 3) — keeps everything inside the same dashboard */}
             <div style={{ display: 'flex', gap: '6px', marginLeft: '12px' }}>
               {(['classic', 'lab'] as const).map((m) => (
                 <button
@@ -578,12 +103,13 @@ export function StrategyDashboard() {
               ))}
             </div>
           </div>
-          <p style={{ 
-            margin: '6px 0 0 0', 
-            fontSize: 'var(--font-sm)', 
+          <p style={{
+            margin: '6px 0 0 0',
+            fontSize: 'var(--font-sm)',
             color: 'var(--color-muted)',
-            maxWidth: '600px'
-          }}>
+            maxWidth: '600px',
+          }}
+          >
             {isLab
               ? 'What-if shocks, gold-sleeve rebalancing, and portfolio-seeded simulations — educational only.'
               : 'Simulate algorithmic strategies over 30 days of synthetic price data — no real funds at risk.'}
@@ -600,290 +126,78 @@ export function StrategyDashboard() {
               borderRadius: '999px',
               background: 'var(--color-accent-dim)',
               color: 'var(--color-accent)',
-              fontWeight: 600
-            }}>
+              fontWeight: 600,
+            }}
+            >
               {r.totalTrades} trades
             </span>
           </div>
         )}
       </div>
 
-      {/* ── Configurator ────────────────────────────────────────────────── */}
-      <div className="glass-card" style={{
-        padding: 'var(--space-xl)',
-      }}>
+      <div className="glass-card" style={{ padding: 'var(--space-xl)' }}>
         <h3 className="section-heading" style={{ marginBottom: '20px' }}>
           <span className="heading-icon">🔧</span> Strategy Configurator
         </h3>
 
-        {/* Mode-aware configurator */}
-        {!isLab && (
+        {isLab ? (
+          <ScenarioLabPanel
+            selectedScenario={selectedScenario}
+            customShocks={customShocks}
+            currentScenario={currentScenario}
+            seedFromPortfolio={seedFromPortfolio}
+            extraCashUsd={extraCashUsd}
+            dcaUsdPerPeriod={dcaUsdPerPeriod}
+            dcaPeriodCount={dcaPeriodCount}
+            onSelectScenario={(key, shocks) => {
+              setSelectedScenario(key);
+              setCustomShocks(shocks);
+            }}
+            onSelectCustom={() => setSelectedScenario('custom')}
+            onCustomShockChange={(id, value) => setCustomShocks({ ...customShocks, [id]: value })}
+            onSeedFromPortfolioChange={setSeedFromPortfolio}
+            onExtraCashChange={setExtraCashUsd}
+            onDcaParamsChange={setDcaParams}
+            costModelPreset={costModelPreset}
+            onCostModelPresetChange={setCostModelPreset}
+          />
+        ) : (
           <>
-            {/* Strategy type pills (classic only) */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
-              {(['arbitrage', 'mean-reversion'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setStrategyType(t)}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: 'var(--radius-full)',
-                    border: strategyType === t
-                      ? '2px solid var(--color-accent)'
-                      : '2px solid var(--color-border)',
-                    background: strategyType === t ? 'var(--color-accent-dim)' : 'transparent',
-                    color: strategyType === t ? 'var(--color-accent)' : 'var(--color-muted)',
-                    fontWeight: strategyType === t ? 700 : 500,
-                    fontSize: 'var(--font-sm)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {t === 'arbitrage' ? '⚡ Arbitrage' : '📈 Mean Reversion'}
-                </button>
-              ))}
-            </div>
-            <div style={{ height: '1px', background: 'var(--color-border)', marginBottom: '24px' }} />
+            <BacktestConfigForm
+            strategyType={strategyType}
+            arbSpreadThreshold={arbSpreadThreshold}
+            arbTradeSize={arbTradeSize}
+            arbRegimeGateEnabled={arbRegimeGateEnabled}
+            regimeMinFidelity={regimeGateConfig.minFidelityScore}
+            regimeFullSizeFidelity={regimeGateConfig.fullSizeFidelityScore}
+            regimeAllowDivergenceOverride={regimeGateConfig.allowDivergenceOverride}
+            mrAsset={mrAsset}
+            mrWindowSize={mrWindowSize}
+            mrBuyThreshold={mrBuyThreshold}
+            mrSellThreshold={mrSellThreshold}
+            mrStopLoss={mrStopLoss}
+            mrTradeSize={mrTradeSize}
+            estimatedTradesPerDay={estimatedTradesPerDay}
+            onStrategyTypeChange={setStrategyType}
+            onArbConfigChange={setArbConfig}
+            onRegimeGateChange={setRegimeGateConfig}
+            onMrConfigChange={(patch) => setMrConfig(patch)}
+            />
+            <CostModelSelector costModelPreset={costModelPreset} onChange={setCostModelPreset} />
           </>
-        )}
-
-        {isLab && (
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', marginBottom: '8px', fontWeight: 600 }}>SCENARIO</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {Object.keys(BUILT_IN_SCENARIOS).map((key) => {
-                const s = BUILT_IN_SCENARIOS[key];
-                const active = selectedScenario === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => { setSelectedScenario(key); /* also populate custom for easy tweak */ setCustomShocks(s.shocks); }}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-full)',
-                      border: active ? '2px solid var(--color-gold)' : '1px solid var(--color-border)',
-                      background: active ? 'var(--color-gold-dim)' : 'var(--color-surface2)',
-                      color: active ? 'var(--color-gold)' : 'var(--color-text)',
-                      fontSize: 'var(--font-xxs)',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                    }}
-                    title={s.description}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setSelectedScenario('custom')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-full)',
-                  border: selectedScenario === 'custom' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  background: selectedScenario === 'custom' ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
-                  color: selectedScenario === 'custom' ? 'var(--color-accent)' : 'var(--color-text)',
-                  fontSize: 'var(--font-xxs)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Custom shocks
-              </button>
-            </div>
-            {selectedScenario === 'custom' && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
-                {['gold', 'pax-gold', 'tether-gold', 'bitcoin', 'ethereum'].map((id) => (
-                  <div key={id} style={{ minWidth: 110, flex: '1 1 auto' }}>
-                    <label style={{ ...labelStyle, fontSize: 'var(--font-xxs)' }}>{id}</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={customShocks[id] ?? 1}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 1;
-                        setCustomShocks({ ...customShocks, [id]: v });
-                      }}
-                      style={{ ...inputStyle, padding: '4px 8px', fontSize: 'var(--font-xs)' }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ fontSize: 'var(--font-xxs)', color: 'var(--color-muted)', marginTop: '6px' }}>
-              {currentScenario?.description} — shocks are simple multipliers (with optional ramp in the runner).
-            </div>
-
-            {/* Compact seed / extra / DCA controls for lab (restored after cleanups) */}
-            <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--color-border)' }}>
-              <label style={{ fontSize: 'var(--font-xxs)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <input type="checkbox" checked={seedFromPortfolio} onChange={(e) => setSeedFromPortfolio(e.target.checked)} />
-                Seed from my portfolio
-              </label>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
-                <input type="number" placeholder="Extra $" value={extraCashUsd} onChange={(e) => setExtraCashUsd(parseFloat(e.target.value) || 0)} style={{ width: 80, fontSize: 'var(--font-xxs)' }} />
-                <input type="number" placeholder="DCA $" value={dcaUsdPerPeriod} onChange={(e) => setDcaParams(parseFloat(e.target.value) || 0, dcaPeriodCount)} style={{ width: 70, fontSize: 'var(--font-xxs)' }} />
-                <input type="number" placeholder="periods" value={dcaPeriodCount} onChange={(e) => setDcaParams(dcaUsdPerPeriod, parseInt(e.target.value) || 0)} style={{ width: 60, fontSize: 'var(--font-xxs)' }} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Arbitrage params (classic mode only) ───────────────────────── */}
-        {!isLab && strategyType === 'arbitrage' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <Field
-                label="Spread Threshold"
-                labelTooltip="Minimum price difference (%) between PAXG and XAUT to trigger a trade. Lower values = more frequent trades but smaller profits per trade."
-                value={arbSpreadThreshold}
-                min={0.05} max={5} step={0.05}
-                onChange={(v) => setArbConfig({ arbSpreadThreshold: parseFloat(v) || 0.25 })}
-                validate={(v) => v >= 0.05 && v <= 5}
-                validationMessage="Must be between 0.05% and 5%"
-                suffix="%"
-              />
-              <Field
-                label="Trade Size"
-                labelTooltip="USD amount to trade per arbitrage opportunity. Larger sizes = higher potential profit but more capital at risk."
-                value={arbTradeSize}
-                min={50} max={50000} step={50}
-                onChange={(v) => setArbConfig({ arbTradeSize: parseFloat(v) || 500 })}
-                validate={(v) => v >= 50 && v <= 50000}
-                validationMessage="Must be between $50 and $50,000"
-                suffix="$"
-              />
-            </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '12px 16px',
-              background: 'var(--color-gold-dim)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-            }}>
-              <span style={{ fontSize: '1rem' }}>🔗</span>
-              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-gold)' }}>
-                Assets locked to <strong>PAXG ↔ XAUT</strong> — the two most liquid gold-backed tokens on-chain.
-                Spread events fire at ≈8% of ticks in the synthetic data.
-              </span>
-            </div>
-            <div style={{
-              display: 'flex',
-              gap: '20px',
-              fontSize: 'var(--font-xs)',
-              color: 'var(--color-muted)',
-              flexWrap: 'wrap'
-            }}>
-              <span>
-                <strong style={{ color: 'var(--color-text)' }}>Entry:</strong> Buy cheaper asset when spread &gt; threshold
-              </span>
-              <span>
-                <strong style={{ color: 'var(--color-text)' }}>Exit:</strong> Sell when spread ≤ threshold / 2
-              </span>
-              <span style={{ marginLeft: 'auto' }}>
-                <strong style={{ color: 'var(--color-accent)' }}>Est. frequency:</strong> ~{estimatedTradesPerDay} trades/day
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Mean-Reversion params (classic mode only) ─────────────────── */}
-        {!isLab && strategyType === 'mean-reversion' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: '200px' }}>
-                <label style={labelStyle}>
-                  Asset
-                  <TooltipIcon text="The cryptocurrency or token to trade using mean-reversion strategy" />
-                </label>
-                <select
-                  value={mrAsset}
-                  onChange={(e) => setMrConfig({ mrAsset: e.target.value })}
-                  style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
-                >
-                  {mrAssetOptions.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <Field
-                label="SMA Window"
-                labelTooltip="Number of hours to calculate the Simple Moving Average. Shorter windows = more responsive but more false signals."
-                value={mrWindowSize}
-                min={4} max={168} step={1}
-                onChange={(v) => setMrConfig({ mrWindowSize: parseInt(v) || 24 })}
-                validate={(v) => v >= 4 && v <= 168}
-                validationMessage="Must be between 4 and 168 hours"
-                suffix="hrs"
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <Field
-                label="Buy Below SMA"
-                labelTooltip="Percentage below SMA to trigger a buy signal. Higher values = fewer but deeper discount entries."
-                value={mrBuyThreshold}
-                min={0.5} max={20} step={0.1}
-                onChange={(v) => setMrConfig({ mrBuyThreshold: parseFloat(v) || 2.0 })}
-                validate={(v) => v >= 0.5 && v <= 20}
-                validationMessage="Must be between 0.5% and 20%"
-                suffix="%"
-              />
-              <Field
-                label="Sell Above SMA"
-                labelTooltip="Percentage above SMA to trigger a sell signal. Should typically be lower than buy threshold for profit margin."
-                value={mrSellThreshold}
-                min={0.5} max={20} step={0.1}
-                onChange={(v) => setMrConfig({ mrSellThreshold: parseFloat(v) || 1.5 })}
-                validate={(v) => v >= 0.5 && v <= 20}
-                validationMessage="Must be between 0.5% and 20%"
-                suffix="%"
-              />
-              <Field
-                label="Stop-Loss"
-                labelTooltip="Maximum loss percentage before exiting position to limit downside. Essential risk management parameter."
-                value={mrStopLoss}
-                min={1} max={30} step={0.5}
-                onChange={(v) => setMrConfig({ mrStopLoss: parseFloat(v) || 5.0 })}
-                validate={(v) => v >= 1 && v <= 30}
-                validationMessage="Must be between 1% and 30%"
-                suffix="%"
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              <Field
-                label="Trade Size"
-                labelTooltip="USD amount per trade. This is the maximum capital allocated to each position."
-                value={mrTradeSize}
-                min={50} max={50000} step={50}
-                onChange={(v) => setMrConfig({ mrTradeSize: parseFloat(v) || 1000 })}
-                validate={(v) => v >= 50 && v <= 50000}
-                validationMessage="Must be between $50 and $50,000"
-                suffix="$"
-              />
-            </div>
-            <p style={{ 
-              margin: 0, 
-              fontSize: 'var(--font-xs)', 
-              color: 'var(--color-muted)',
-              lineHeight: 1.5
-            }}>
-              Prices generated with an Ornstein-Uhlenbeck process (θ=0.03, σ=0.8%/hr) for realistic mean-reverting behaviour.
-              <span style={{ marginLeft: '16px', color: 'var(--color-accent)' }}>
-                Est. frequency: ~{estimatedTradesPerDay} trades/day
-              </span>
-            </p>
-          </div>
         )}
 
         <div style={{ height: '1px', background: 'var(--color-border)', margin: '24px 0' }} />
 
-        {/* Common: initial balance */}
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '24px' }}>
           <div style={{ flex: 1, minWidth: 180, maxWidth: 280 }}>
             <Field
               label="Starting Balance"
               labelTooltip="Initial capital for the backtest simulation. Results are calculated based on this starting amount."
               value={initialBalance}
-              min={100} max={1_000_000} step={100}
+              min={100}
+              max={1_000_000}
+              step={100}
               onChange={(v) => setInitialBalance(parseFloat(v) || 10_000)}
               validate={(v) => v >= 100 && v <= 1000000}
               validationMessage="Must be between $100 and $1,000,000"
@@ -892,7 +206,6 @@ export function StrategyDashboard() {
           </div>
         </div>
 
-        {/* Run button */}
         <button
           onClick={handleRunBacktest}
           disabled={isRunning}
@@ -911,7 +224,7 @@ export function StrategyDashboard() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '10px',
-            boxShadow: isRunning ? 'none' : 'var(--shadow-md)'
+            boxShadow: isRunning ? 'none' : 'var(--shadow-md)',
           }}
           aria-label="Run back-test over 30 days of synthetic data"
         >
@@ -919,12 +232,14 @@ export function StrategyDashboard() {
             <>
               <span style={{
                 display: 'inline-block',
-                width: 16, height: 16,
+                width: 16,
+                height: 16,
                 border: '2px solid var(--color-muted)',
                 borderTopColor: '#fff',
                 borderRadius: '50%',
                 animation: 'spin 0.7s linear infinite',
-              }} />
+              }}
+              />
               Running simulation…
             </>
           ) : isLab ? (
@@ -935,305 +250,17 @@ export function StrategyDashboard() {
         </button>
       </div>
 
-      {/* ── Results Summary ──────────────────────────────────────────────── */}
       {r && (
-        <div className="glass-card" style={{
-          padding: 'var(--space-xl)',
-        }}>
-          <h3 className="section-heading" style={{ marginBottom: '20px' }}>
-            <span className="heading-icon">📊</span> Backtest Summary
-          </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatBox
-              label="Final Balance"
-              value={formatPrice(r.finalBalance)}
-              color={returnColor}
-            />
-            <StatBox
-              label="Total Return"
-              value={formatPercent(r.totalReturn)}
-              color={returnColor}
-              subtext={`from ${formatPrice(r.initialBalance)}`}
-            />
-            <StatBox
-              label="Max Drawdown"
-              value={formatPercent(-r.maxDrawdown)}
-              color={r.maxDrawdown > 10 ? 'var(--color-red)' : 'var(--color-muted)'}
-            />
-            <StatBox
-              label="Win Rate"
-              value={winRate}
-              color={
-                r.totalTrades > 0 && r.winningTrades / r.totalTrades >= 0.5
-                  ? 'var(--color-green)'
-                  : 'var(--color-red)'
-              }
-              subtext={`${r.winningTrades} / ${r.totalTrades} trades`}
-            />
-            <StatBox
-              label="Total Trades"
-              value={String(r.totalTrades)}
-              subtext={`${r.trades.length} executions`}
-            />
-          </div>
-
-          {/* Scenario Lab benchmark strip (simple side-by-side) */}
-          {isLab && lastScenarioResult && (
-            <div style={{ marginTop: '12px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 160, background: 'var(--color-surface2)', borderRadius: 'var(--radius-md)', padding: '8px 10px', fontSize: 'var(--font-xs)' }}>
-                <div style={{ color: 'var(--color-muted)' }}>Scenario vs Hold</div>
-                <div style={{ fontWeight: 700 }}>
-                  {formatPercent(lastScenarioResult.totalReturn)} / Hold {formatPercent((lastScenarioResult.totalReturn * 0.6))} (illustrative)
-                </div>
-              </div>
-              <div style={{ flex: 1, minWidth: 160, background: 'var(--color-surface2)', borderRadius: 'var(--radius-md)', padding: '8px 10px', fontSize: 'var(--font-xs)' }}>
-                <div style={{ color: 'var(--color-muted)' }}>Final gold oz (est.)</div>
-                <div style={{ fontWeight: 700, color: 'var(--color-gold)' }}>
-                  {((lastScenarioResult.finalBalance * 0.55) / (goldPrice || 3290)).toFixed(4)} oz sleeve
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Equity Curve ─────────────────────────────────────────────────── */}
-      {r && equityCurveDisplay.length > 1 && (
-        <div className="glass-card" style={{
-          padding: 'var(--space-xl)',
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-            marginBottom: '20px', 
-            flexWrap: 'wrap', 
-            gap: '12px' 
-          }}>
-            <h3 className="section-heading">
-              <span className="heading-icon">📈</span> {isLab ? 'Portfolio Value Under Scenario' : 'Portfolio Value Over Time'}
-            </h3>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span style={{
-                fontSize: 'var(--font-xs)',
-                padding: '3px 10px',
-                borderRadius: '999px',
-                background: 'var(--color-accent-dim)',
-                color: 'var(--color-accent)',
-                fontWeight: 600
-              }}>
-                {isLab ? 'Shocked / synthetic path' : '30-day simulation'}
-              </span>
-              <span className={`badge ${r.totalReturn >= 0 ? 'badge-green' : 'badge-red'}`}>
-                {r.totalReturn >= 0 ? '▲' : '▼'} {formatPercent(Math.abs(r.totalReturn))}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ width: '100%', height: 300 }} role="img" aria-label="Simulated portfolio equity curve">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={equityCurveDisplay} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="var(--color-accent)" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(80,86,140,0.15)" vertical={false} />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(t: number) =>
-                    new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  }
-                  stroke="var(--color-muted)"
-                  tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tickFormatter={(v: number) => `$${(v / 1000).toFixed(1)}k`}
-                  stroke="var(--color-muted)"
-                  tick={{ fill: 'var(--color-muted)', fontSize: 11 }}
-                  width={62}
-                />
-                <Tooltip
-                  contentStyle={tooltipContentStyle}
-                  formatter={(v: unknown) => [formatPrice(v as number), 'Portfolio Value']}
-                  labelFormatter={(t: unknown) => new Date(t as number).toLocaleString()}
-                />
-                <ReferenceLine
-                  y={r.initialBalance}
-                  stroke="var(--color-muted)"
-                  strokeDasharray="5 4"
-                  strokeOpacity={0.6}
-                  label={{
-                    value: 'Start',
-                    fill: 'var(--color-muted)',
-                    fontSize: 10,
-                    position: 'right',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="var(--color-accent)"
-                  fill="url(#equityGradient)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0, fill: 'var(--color-accent)' }}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* ── Trade Log ────────────────────────────────────────────────────── */}
-      {r && r.trades.length > 0 && (
-        <div className="glass-card" style={{
-          padding: 'var(--space-xl)',
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between', 
-            marginBottom: '20px', 
-            flexWrap: 'wrap', 
-            gap: '12px' 
-          }}>
-            <h3 className="section-heading">
-              <span className="heading-icon">🗒</span> {isLab ? 'Scenario Trades (rebal + DCA)' : 'Simulated Trade Log'}
-            </h3>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span style={{
-                fontSize: 'var(--font-xs)',
-                padding: '3px 10px',
-                borderRadius: '999px',
-                background: 'var(--color-surface2)',
-                color: 'var(--color-muted)',
-                fontWeight: 600
-              }}>
-                {r.trades.length} executions
-              </span>
-              <span style={{
-                fontSize: 'var(--font-xs)',
-                padding: '3px 10px',
-                borderRadius: '999px',
-                background: 'var(--color-accent-dim)',
-                color: 'var(--color-accent)',
-                fontWeight: 600
-              }}>
-                Showing last {Math.min(100, r.trades.length)}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-xs)' }}>
-                <thead>
-                  <tr style={{ position: 'sticky', top: 0, background: 'var(--color-surface)', zIndex: 1 }}>
-                    {['Date / Time', 'Asset', 'Side', 'Price', 'Units', 'Amount (USD)', 'P&L'].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '10px 12px',
-                          textAlign: h === 'P&L' || h === 'Amount (USD)' || h === 'Price' || h === 'Units' ? 'right' : 'left',
-                          color: 'var(--color-muted)',
-                          fontWeight: 700,
-                          letterSpacing: '0.05em',
-                          textTransform: 'uppercase',
-                          borderBottom: '2px solid var(--color-border)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tradeLogDisplay.map((trade, idx) => {
-                    const isEven = idx % 2 === 0;
-                    const pnlColor = trade.side === 'BUY'
-                      ? 'var(--color-muted)'
-                      : trade.pnl >= 0
-                        ? 'var(--color-green)'
-                        : 'var(--color-red)';
-
-                    return (
-                      <tr
-                        key={trade.id}
-                        style={{
-                          background: isEven ? 'transparent' : 'var(--color-surface2)',
-                          borderBottom: '1px solid var(--color-border)',
-                          transition: 'background 0.1s',
-                        }}
-                        title={trade.reason}
-                      >
-                        <td style={{ padding: '10px 12px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                          {new Date(trade.timestamp).toLocaleString('en-US', {
-                            month: 'short', day: 'numeric',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </td>
-                        <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--color-text)' }}>
-                          {trade.symbol}
-                        </td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '3px 10px',
-                            borderRadius: 'var(--radius-full)',
-                            fontSize: '0.65rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.08em',
-                            background: trade.side === 'BUY'
-                              ? 'var(--color-gold-dim)'
-                              : trade.pnl >= 0
-                                ? 'var(--color-green-dim)'
-                                : 'var(--color-red-dim)',
-                            color: trade.side === 'BUY'
-                              ? 'var(--color-gold)'
-                              : trade.pnl >= 0
-                                ? 'var(--color-green)'
-                                : 'var(--color-red)',
-                          }}>
-                            {trade.side}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
-                          {formatPrice(trade.price)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--color-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                          {trade.units < 0.01
-                            ? trade.units.toFixed(6)
-                            : trade.units < 1
-                              ? trade.units.toFixed(4)
-                              : trade.units.toFixed(2)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)' }}>
-                          {formatPrice(trade.amountUSD)}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: pnlColor, fontVariantNumeric: 'tabular-nums' }}>
-                          {trade.side === 'BUY'
-                            ? <span style={{ color: 'var(--color-muted)' }}>—</span>
-                            : (trade.pnl >= 0 ? '+' : '') + formatPrice(trade.pnl)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {r.trades.length > 100 && (
-            <p style={{ margin: '12px 0 0 0', fontSize: 'var(--font-xs)', color: 'var(--color-muted)', textAlign: 'center' }}>
-              Showing most recent 100 of {r.trades.length} total executions
-            </p>
-          )}
-        </div>
+        <>
+          <PerformanceStatBoxes
+            result={r}
+            isLab={isLab}
+            lastScenarioResult={lastScenarioResult}
+            goldPrice={goldPrice}
+          />
+          <EquityCurveChart result={r} isLab={isLab} />
+          <TradeLogTable result={r} isLab={isLab} />
+        </>
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

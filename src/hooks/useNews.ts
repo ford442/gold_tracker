@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchGoldNews } from '../lib/api';
-import type { NewsItem } from '../types';
+import { fetchGoldNews } from '@lib/api';
+import type { NewsItem } from '@/types';
 
 const NEWS_INTERVAL = 300000; // 5 min
 

@@ -9,7 +9,37 @@
 export interface BacktestTick {
   timestamp: number;                 // Unix ms
   prices: Record<string, number>;   // assetId → USD price
+  /** Optional regime context for gated strategies (e.g. PAXG/XAUT arb). */
+  regime?: {
+    paxg: import('@/types').FidelityScore;
+    xaut: import('@/types').FidelityScore;
+  };
 }
+
+/** Per-leg trading cost assumptions applied inside runBacktest. */
+export interface CostModel {
+  /** Exchange fee in basis points charged on each fill (BUY or SELL leg). */
+  feeBps: number;
+  /** Optional adverse slippage in bps (worse fill vs mid price). */
+  slippageBps?: number;
+  exchange?: 'coinbase' | 'kraken' | 'custom';
+}
+
+/** Zero-cost default — preserves pre-fee backtest behaviour. */
+export const DEFAULT_COST_MODEL: CostModel = { feeBps: 0, slippageBps: 0, exchange: 'custom' };
+
+/**
+ * Exchange fee presets aligned with live routing notes:
+ * Coinbase ~0.6% per leg (≈1.2% round-trip PAXG→USD→XAUT);
+ * Kraken ~0.26% for a direct PAXG/XAUT leg.
+ */
+export const EXCHANGE_COST_PRESETS = {
+  none: { feeBps: 0, slippageBps: 0, exchange: 'custom' } satisfies CostModel,
+  coinbase: { feeBps: 60, slippageBps: 0, exchange: 'coinbase' } satisfies CostModel,
+  kraken: { feeBps: 26, slippageBps: 0, exchange: 'kraken' } satisfies CostModel,
+} as const;
+
+export type ExchangeCostPreset = keyof typeof EXCHANGE_COST_PRESETS;
 
 /** One executed trade recorded in the simulation log. */
 export interface TradeLog {
@@ -21,7 +51,8 @@ export interface TradeLog {
   price: number;
   units: number;
   amountUSD: number;
-  pnl: number;       // 0 for BUYs; realised P&L for SELLs
+  pnl: number;       // 0 for BUYs; realised P&L for SELLs (net of fees when costs enabled)
+  feeUsd: number;    // exchange fee charged on this leg
   reason: string;
 }
 
@@ -34,8 +65,20 @@ export interface EquityPoint {
 /** Complete result returned by runBacktest. */
 export interface BacktestResult {
   initialBalance: number;
+  /** Net final equity after fees/slippage (same as equityCurve terminus). */
   finalBalance: number;
-  totalReturn: number;    // percent
+  /** Net return % — primary metric when costs are enabled. */
+  totalReturn: number;
+  /** Return % before fees/slippage drag (equals totalReturn when feeBps = 0). */
+  grossTotalReturn: number;
+  /** Final equity before fee/slippage drag is added back. */
+  grossFinalBalance: number;
+  /** Sum of exchange fees paid across all legs. */
+  totalFeesUsd: number;
+  /** Sum of slippage cost (mid vs effective fill) across all legs. */
+  totalSlippageUsd: number;
+  /** Cost model used for this run (always present; defaults to zero fees). */
+  costModel: CostModel;
   maxDrawdown: number;    // percent (positive number)
   totalTrades: number;    // completed round trips (SELL count)
   winningTrades: number;
@@ -69,24 +112,37 @@ export interface TradingStrategy {
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
+import { toSymbol } from './assets';
+import {
+  DEFAULT_REGIME_GATE_CONFIG,
+  evaluateArbRegimeGate,
+  type RegimeGateConfig,
+} from './regime';
+
 let _idCounter = 0;
 function nextId(): string {
   return `trade-${Date.now()}-${++_idCounter}`;
 }
 
-const ASSET_SYMBOLS: Record<string, string> = {
-  'pax-gold':    'PAXG',
-  'tether-gold': 'XAUT',
-  'bitcoin':     'BTC',
-  'ethereum':    'ETH',
-  'bitcoin-cash':'BCH',
-  'gold':        'XAU',
-};
-
-function toSymbol(assetId: string): string {
-  return ASSET_SYMBOLS[assetId] ?? assetId.toUpperCase();
+function effectiveBuyPrice(midPrice: number, slippageBps: number): number {
+  return midPrice * (1 + slippageBps / 10_000);
 }
 
+function effectiveSellPrice(midPrice: number, slippageBps: number): number {
+  return midPrice * (1 - slippageBps / 10_000);
+}
+
+function legFee(notionalUsd: number, feeBps: number): number {
+  return notionalUsd * feeBps / 10_000;
+}
+
+function resolveCostModel(costModel?: CostModel): CostModel {
+  return {
+    feeBps: costModel?.feeBps ?? 0,
+    slippageBps: costModel?.slippageBps ?? 0,
+    exchange: costModel?.exchange ?? 'custom',
+  };
+}
 // ─── Strategy: Arbitrage ─────────────────────────────────────────────────────
 
 export interface ArbConfig {
@@ -94,6 +150,11 @@ export interface ArbConfig {
   asset2: string;           // e.g. 'tether-gold'
   spreadThreshold: number;  // percent, e.g. 0.25
   tradeSize: number;        // USD per entry
+  /** Optional structural fidelity gate — blocks/scales entries only. */
+  regimeGate?: {
+    enabled: boolean;
+    config?: RegimeGateConfig;
+  };
 }
 
 /**
@@ -106,7 +167,8 @@ export interface ArbConfig {
  * Only one position may be open at a time (long the cheaper asset).
  */
 export function createArbitrageStrategy(config: ArbConfig): TradingStrategy {
-  const { asset1, asset2, spreadThreshold, tradeSize } = config;
+  const { asset1, asset2, spreadThreshold, tradeSize, regimeGate } = config;
+  const gateConfig = regimeGate?.config ?? DEFAULT_REGIME_GATE_CONFIG;
 
   // Closure state
   let openSide: 'long1' | 'long2' | null = null;
@@ -128,6 +190,16 @@ export function createArbitrageStrategy(config: ArbConfig): TradingStrategy {
       if (openSide === null) {
         // Open a new position if spread is wide enough
         if (Math.abs(spread) > spreadThreshold) {
+          let effectiveTradeSize = tradeSize;
+          let regimeSuffix = '';
+
+          if (regimeGate?.enabled && tick.regime) {
+            const gate = evaluateArbRegimeGate(tick.regime.paxg, tick.regime.xaut, gateConfig);
+            if (!gate.allowed) return [];
+            effectiveTradeSize = tradeSize * gate.sizeMultiplier;
+            regimeSuffix = ` · ${gate.reason}`;
+          }
+
           if (spread > 0) {
             // asset1 is expensive → buy the cheaper asset2
             if (state.balanceUSD >= 1) {
@@ -135,8 +207,8 @@ export function createArbitrageStrategy(config: ArbConfig): TradingStrategy {
                 asset: asset2,
                 symbol: toSymbol(asset2),
                 side: 'BUY',
-                amountUSD: Math.min(tradeSize, state.balanceUSD),
-                reason: `Spread +${spread.toFixed(3)}% — buying cheaper ${toSymbol(asset2)}`,
+                amountUSD: Math.min(effectiveTradeSize, state.balanceUSD),
+                reason: `Spread +${spread.toFixed(3)}% — buying cheaper ${toSymbol(asset2)}${regimeSuffix}`,
               });
               openSide = 'long2';
             }
@@ -147,8 +219,8 @@ export function createArbitrageStrategy(config: ArbConfig): TradingStrategy {
                 asset: asset1,
                 symbol: toSymbol(asset1),
                 side: 'BUY',
-                amountUSD: Math.min(tradeSize, state.balanceUSD),
-                reason: `Spread ${spread.toFixed(3)}% — buying cheaper ${toSymbol(asset1)}`,
+                amountUSD: Math.min(effectiveTradeSize, state.balanceUSD),
+                reason: `Spread ${spread.toFixed(3)}% — buying cheaper ${toSymbol(asset1)}${regimeSuffix}`,
               });
               openSide = 'long1';
             }
@@ -502,14 +574,20 @@ export function generateBaseScenarioTicks(
  * @param initialPositions Optional starting positions (units + avgCost) to seed
  *                         from a real portfolio snapshot. Equity and P&L are
  *                         computed from the first tick's prices onward.
+ * @param costModel        Optional per-leg fee/slippage model (default: zero fees).
  */
 export function runBacktest(
   ticks: BacktestTick[],
   strategy: TradingStrategy,
   initialBalance: number,
   initialPositions?: Record<string, { units: number; avgCost: number }>,
+  costModel?: CostModel,
 ): BacktestResult {
   _idCounter = 0; // reset for deterministic IDs per run
+
+  const costs = resolveCostModel(costModel);
+  const slipBps = costs.slippageBps ?? 0;
+  const feeBps = costs.feeBps;
 
   const state: EngineState = {
     balanceUSD: initialBalance,
@@ -522,6 +600,8 @@ export function runBacktest(
   let peakEquity = initialBalance;
   let maxDrawdown = 0;
   let winningTrades = 0;
+  let totalFeesUsd = 0;
+  let totalSlippageUsd = 0;
 
   for (const tick of ticks) {
     const signals = strategy.onTick(tick, state);
@@ -531,11 +611,23 @@ export function runBacktest(
       if (!price || price <= 0) continue;
 
       if (signal.side === 'BUY') {
-        const spend = Math.min(signal.amountUSD, state.balanceUSD);
+        const maxSpendBeforeFee = feeBps > 0
+          ? state.balanceUSD / (1 + feeBps / 10_000)
+          : state.balanceUSD;
+        const spend = Math.min(signal.amountUSD, maxSpendBeforeFee);
         if (spend < 0.01) continue;
 
-        const units = spend / price;
-        state.balanceUSD -= spend;
+        const effPrice = effectiveBuyPrice(price, slipBps);
+        const fee = legFee(spend, feeBps);
+        const totalDebit = spend + fee;
+        if (totalDebit > state.balanceUSD + 0.0001) continue;
+
+        const units = spend / effPrice;
+        const slippageCost = spend - units * price;
+
+        state.balanceUSD -= totalDebit;
+        totalFeesUsd += fee;
+        totalSlippageUsd += Math.max(0, slippageCost);
 
         const existing = state.positions[signal.asset];
         if (existing) {
@@ -556,6 +648,7 @@ export function runBacktest(
           units,
           amountUSD: spend,
           pnl: 0,
+          feeUsd: fee,
           reason: signal.reason,
         });
 
@@ -564,13 +657,21 @@ export function runBacktest(
         const pos = state.positions[signal.asset];
         if (!pos || pos.units < 0.000001) continue;
 
-        const proceeds = pos.units * price;
+        const effPrice = effectiveSellPrice(price, slipBps);
+        const grossProceeds = pos.units * effPrice;
+        const fee = legFee(grossProceeds, feeBps);
+        const netProceeds = grossProceeds - fee;
+        const midProceeds = pos.units * price;
+        const slippageCost = midProceeds - grossProceeds;
+
         const costBasis = pos.units * pos.avgCost;
-        const pnl = proceeds - costBasis;
+        const pnl = netProceeds - costBasis;
 
         if (pnl > 0) winningTrades++;
 
-        state.balanceUSD += proceeds;
+        state.balanceUSD += netProceeds;
+        totalFeesUsd += fee;
+        totalSlippageUsd += Math.max(0, slippageCost);
 
         trades.push({
           id: nextId(),
@@ -580,8 +681,9 @@ export function runBacktest(
           side: 'SELL',
           price,
           units: pos.units,
-          amountUSD: proceeds,
+          amountUSD: grossProceeds,
           pnl,
+          feeUsd: fee,
           reason: signal.reason,
         });
 
@@ -592,8 +694,8 @@ export function runBacktest(
     // ── Equity snapshot ──────────────────────────────────────────────────
     let equity = state.balanceUSD;
     for (const [assetId, pos] of Object.entries(state.positions)) {
-      const price = tick.prices[assetId];
-      if (price) equity += pos.units * price;
+      const p = tick.prices[assetId];
+      if (p) equity += pos.units * p;
     }
 
     equityCurve.push({ timestamp: tick.timestamp, value: equity });
@@ -606,12 +708,21 @@ export function runBacktest(
   // Liquidate any remaining open positions at last tick prices
   const lastTick = ticks[ticks.length - 1];
   if (lastTick) {
-    for (const [assetId, pos] of Object.entries(state.positions)) {
+    for (const [assetId, pos] of Object.entries({ ...state.positions })) {
       const price = lastTick.prices[assetId];
       if (price && pos.units > 0.000001) {
-        const proceeds = pos.units * price;
-        const pnl = proceeds - pos.units * pos.avgCost;
+        const effPrice = effectiveSellPrice(price, slipBps);
+        const grossProceeds = pos.units * effPrice;
+        const fee = legFee(grossProceeds, feeBps);
+        const netProceeds = grossProceeds - fee;
+        const midProceeds = pos.units * price;
+        const slippageCost = midProceeds - grossProceeds;
+        const pnl = netProceeds - pos.units * pos.avgCost;
+
         if (pnl > 0) winningTrades++;
+        totalFeesUsd += fee;
+        totalSlippageUsd += Math.max(0, slippageCost);
+
         trades.push({
           id: nextId(),
           timestamp: lastTick.timestamp,
@@ -620,26 +731,36 @@ export function runBacktest(
           side: 'SELL',
           price,
           units: pos.units,
-          amountUSD: proceeds,
+          amountUSD: grossProceeds,
           pnl,
+          feeUsd: fee,
           reason: 'End of backtest — position closed',
         });
-        state.balanceUSD += proceeds;
+        state.balanceUSD += netProceeds;
+        delete state.positions[assetId];
       }
     }
   }
 
-  const finalBalance = equityCurve.length > 0
-    ? equityCurve[equityCurve.length - 1].value
-    : initialBalance;
+  const resolvedFinalBalance = ticks.length > 0 ? state.balanceUSD : initialBalance;
+  if (equityCurve.length > 0) {
+    equityCurve[equityCurve.length - 1].value = resolvedFinalBalance;
+  }
 
-  const totalReturn = ((finalBalance - initialBalance) / initialBalance) * 100;
+  const grossFinalBalance = resolvedFinalBalance + totalFeesUsd + totalSlippageUsd;
+  const totalReturn = ((resolvedFinalBalance - initialBalance) / initialBalance) * 100;
+  const grossTotalReturn = ((grossFinalBalance - initialBalance) / initialBalance) * 100;
   const sellTrades = trades.filter((t) => t.side === 'SELL');
 
   return {
     initialBalance,
-    finalBalance,
+    finalBalance: resolvedFinalBalance,
     totalReturn,
+    grossTotalReturn,
+    grossFinalBalance,
+    totalFeesUsd,
+    totalSlippageUsd,
+    costModel: costs,
     maxDrawdown,
     totalTrades: sellTrades.length,
     winningTrades,

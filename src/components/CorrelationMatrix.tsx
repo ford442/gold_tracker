@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useCorrelations } from '../hooks/useCorrelations';
-import { getCorrelationStyle } from '../lib/utils';
-import type { CorrelationPeriod } from '../types';
+import { useCorrelations } from '@/hooks/useCorrelations';
+import { getCorrelationStyle } from '@lib/utils';
+import type { CorrelationPeriod } from '@/types';
 
 const PERIODS: CorrelationPeriod[] = ['1h', '1d', '7d', '30d'];
 

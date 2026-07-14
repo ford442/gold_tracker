@@ -1,8 +1,19 @@
-import { useAlertStore } from '../store/alertStore';
-import { useArbitrageAlerts } from '../hooks/useArbitrageAlerts';
-import { usePriceStore } from '../store/priceStore';
-import { formatPrice, computeSpread } from '../lib/utils';
+import { Toaster } from 'react-hot-toast';
+import { useAlertStore } from '@/store/alertStore';
+import { useAlertRules } from '@/hooks/useAlertRules';
+import { usePriceStore } from '@/store/priceStore';
+import { formatPrice, computeSpread } from '@lib/utils';
+import { AlertRulesManager } from './alerts/AlertRulesManager';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+
+const TOASTER_OPTIONS = {
+  style: {
+    background: 'var(--color-surface-solid)',
+    color: 'var(--color-text)',
+    border: '1px solid var(--color-border)',
+    fontSize: '0.85rem',
+  },
+};
 
 function MicroSparkline({ data, color }: { data: { price: number }[]; color: string }) {
   if (data.length < 2) return null;
@@ -30,8 +41,16 @@ function MicroSparkline({ data, color }: { data: { price: number }[]; color: str
   );
 }
 
+const ALERT_ICONS: Record<string, string> = {
+  arbitrage: '⚡',
+  price: '📈',
+  fidelity: '📊',
+  premium: '🏅',
+  info: 'ℹ️',
+};
+
 export function ArbitrageAlerts() {
-  useArbitrageAlerts();
+  useAlertRules();
 
   const { alerts, dismissAlert, clearAll } = useAlertStore();
   const { prices } = usePriceStore();
@@ -41,20 +60,22 @@ export function ArbitrageAlerts() {
   const activeAlerts = alerts.filter((a) => !a.dismissed);
   const spread = paxg && xaut ? computeSpread(paxg.price, xaut.price) : null;
 
-  const paxgSparkData = paxg?.sparkline?.slice(-12).map(p => ({ price: p.price })) ?? [];
-  const xautSparkData = xaut?.sparkline?.slice(-12).map(p => ({ price: p.price })) ?? [];
+  const paxgSparkData = paxg?.sparkline?.slice(-12).map((p) => ({ price: p.price })) ?? [];
+  const xautSparkData = xaut?.sparkline?.slice(-12).map((p) => ({ price: p.price })) ?? [];
 
   return (
-    <section aria-label="Arbitrage Alerts" style={{ marginBottom: 'var(--space-2xl)' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: 'var(--space-lg)' 
+    <section aria-label="Alerts" style={{ marginBottom: 'var(--space-2xl)' }}>
+      <Toaster position="top-right" toastOptions={TOASTER_OPTIONS} />
+
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 'var(--space-lg)',
       }}>
         <h2 className="section-heading">
           <span className="heading-icon">🔔</span>
-          Arbitrage Alerts
+          Alerts
         </h2>
         {activeAlerts.length > 0 && (
           <button
@@ -68,7 +89,7 @@ export function ArbitrageAlerts() {
               color: 'var(--color-muted)',
               cursor: 'pointer',
               fontSize: 'var(--font-xs)',
-              fontWeight: 500
+              fontWeight: 500,
             }}
           >
             Clear all
@@ -76,9 +97,11 @@ export function ArbitrageAlerts() {
         )}
       </div>
 
+      <AlertRulesManager />
+
       {/* PAXG vs XAUT live spread with micro-sparklines */}
       {paxg && xaut && (
-        <div 
+        <div
           className="card-hover glass-card"
           style={{
             padding: '16px 18px',
@@ -91,11 +114,11 @@ export function ArbitrageAlerts() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
+              <div style={{
+                fontSize: 'var(--font-xs)',
                 color: 'var(--color-muted)',
                 fontWeight: 600,
-                marginBottom: '2px'
+                marginBottom: '2px',
               }}>
                 PAXG
               </div>
@@ -108,11 +131,11 @@ export function ArbitrageAlerts() {
           <div style={{ fontSize: '1.3rem', color: 'var(--color-muted)' }}>⇄</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
+              <div style={{
+                fontSize: 'var(--font-xs)',
                 color: 'var(--color-muted)',
                 fontWeight: 600,
-                marginBottom: '2px'
+                marginBottom: '2px',
               }}>
                 XAUT
               </div>
@@ -124,11 +147,11 @@ export function ArbitrageAlerts() {
           </div>
           {spread !== null && (
             <div style={{ marginLeft: 'auto' }}>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
+              <div style={{
+                fontSize: 'var(--font-xs)',
                 color: 'var(--color-muted)',
                 fontWeight: 600,
-                marginBottom: '2px'
+                marginBottom: '2px',
               }}>
                 Spread
               </div>
@@ -136,16 +159,11 @@ export function ArbitrageAlerts() {
                 fontWeight: 700,
                 fontSize: '1.2rem',
                 color: Math.abs(spread) > 0.5 ? 'var(--color-gold)' : 'var(--color-green)',
-                fontVariantNumeric: 'tabular-nums'
+                fontVariantNumeric: 'tabular-nums',
               }}>
                 {spread >= 0 ? '↑ +' : '↓ '}{spread.toFixed(3)}%
               </div>
             </div>
-          )}
-          {spread !== null && Math.abs(spread) > 0.5 && (
-            <span className="badge badge-gold" style={{ fontSize: '0.7rem' }}>
-              ⚡ Signal active
-            </span>
           )}
         </div>
       )}
@@ -161,7 +179,7 @@ export function ArbitrageAlerts() {
           <div style={{ fontSize: '1.8rem', marginBottom: '10px', opacity: 0.7 }}>✅</div>
           <div style={{ fontWeight: 500 }}>No active alerts</div>
           <div style={{ fontSize: 'var(--font-xs)', marginTop: '6px' }}>
-            Spread is within normal range (&lt;0.5%)
+            Rules are evaluated on each price tick. Add or edit rules above.
           </div>
         </div>
       ) : (
@@ -180,27 +198,36 @@ export function ArbitrageAlerts() {
               }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ 
-                  fontSize: 'var(--font-base)', 
-                  fontWeight: 600, 
+                <div style={{
+                  fontSize: 'var(--font-base)',
+                  fontWeight: 600,
                   color: 'var(--color-text)',
-                  lineHeight: 1.4
+                  lineHeight: 1.4,
                 }}>
-                  {alert.type === 'arbitrage' ? '⚡ ' : 'ℹ️ '}
+                  {ALERT_ICONS[alert.type] ?? 'ℹ️ '}{' '}
                   {alert.message}
                 </div>
-                <div style={{ 
-                  fontSize: 'var(--font-xs)', 
-                  color: 'var(--color-muted)', 
-                  marginTop: '6px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '10px' 
+                <div style={{
+                  fontSize: 'var(--font-xs)',
+                  color: 'var(--color-muted)',
+                  marginTop: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap',
                 }}>
                   <span>{new Date(alert.timestamp).toLocaleTimeString()}</span>
-                  {alert.spread && (
+                  {alert.ruleName && (
+                    <span className="badge badge-accent">{alert.ruleName}</span>
+                  )}
+                  {alert.spread !== undefined && (
                     <span className={`badge ${alert.spread > 0.5 ? 'badge-gold' : 'badge-green'}`}>
                       Spread: {alert.spread >= 0 ? '+' : ''}{alert.spread.toFixed(2)}%
+                    </span>
+                  )}
+                  {alert.value !== undefined && alert.type !== 'arbitrage' && (
+                    <span className="badge badge-gold">
+                      Value: {alert.value.toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -222,10 +249,10 @@ export function ArbitrageAlerts() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: 'var(--radius-sm)',
-                  transition: 'color 0.15s'
+                  transition: 'color 0.15s',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-red)'}
-                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-muted)'}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-red)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-muted)'; }}
               >
                 ✕
               </button>

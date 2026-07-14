@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useNews } from '../hooks/useNews';
-import { formatTimeAgo } from '../lib/utils';
+import { useNews } from '@/hooks/useNews';
+import { formatTimeAgo } from '@lib/utils';
 
 const COLLAPSED_KEY = 'goldtrackr-news-collapsed';
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSettingsStore } from '../store/settingsStore';
-import { getCoinbaseAccounts, type CoinbaseAccount } from '../lib/coinbase';
+import { useSettingsStore } from '@/store/settingsStore';
+import { getCoinbaseAccounts, type CoinbaseAccount } from '@lib/coinbase';
 
 const POLL_INTERVAL = 60000; // 60 seconds, same as price polling
 

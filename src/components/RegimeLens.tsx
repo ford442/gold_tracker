@@ -3,10 +3,10 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { useRegimeAnalysis } from '../hooks/useRegimeAnalysis';
-import { getCorrelationStyle } from '../lib/utils';
+import { useRegimeAnalysis } from '@/hooks/useRegimeAnalysis';
+import { getCorrelationStyle } from '@lib/utils';
 import { ChartSkeleton, CardSkeleton } from './LoadingSkeleton';
-import type { AnalysisHorizon } from '../types';
+import type { AnalysisHorizon } from '@/types';
 
 const HORIZONS: AnalysisHorizon[] = ['30d', '90d', '1y', 'max'];
 const HORIZON_LABELS: Record<AnalysisHorizon, string> = {

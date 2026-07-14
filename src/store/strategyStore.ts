@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { BacktestResult } from '../lib/strategyEngine';
+import type { BacktestResult } from '@lib/strategyEngine';
+import { DEFAULT_REGIME_GATE_CONFIG, type RegimeGateConfig } from '@lib/regime';
 
 // ─── Config shape slices ──────────────────────────────────────────────────────
 
@@ -9,6 +10,9 @@ export interface ArbStoreConfig {
   arbTradeSize: number;       // USD per entry
   arbAsset1: string;          // CoinGecko ID
   arbAsset2: string;          // CoinGecko ID
+  /** Enable structural fidelity gate on arb entries in backtests. */
+  arbRegimeGateEnabled: boolean;
+  regimeGateConfig: RegimeGateConfig;
 }
 
 export interface MRStoreConfig {
@@ -29,6 +33,8 @@ export interface ScenarioLabConfig {
   extraCashUsd: number;
   dcaUsdPerPeriod: number;
   dcaPeriodCount: number;
+  /** Fee profile for simulation legs (none = gross-only, backward compatible). */
+  costModelPreset: 'none' | 'coinbase' | 'kraken';
 }
 
 // ─── Full store interface ─────────────────────────────────────────────────────
@@ -43,6 +49,7 @@ interface StrategyState extends ArbStoreConfig, MRStoreConfig, ScenarioLabConfig
   // ── Actions ──────────────────────────────────────────────────────────────
   setStrategyType: (t: 'arbitrage' | 'mean-reversion') => void;
   setArbConfig: (c: Partial<ArbStoreConfig>) => void;
+  setRegimeGateConfig: (c: Partial<RegimeGateConfig>) => void;
   setMrConfig: (c: Partial<MRStoreConfig>) => void;
   setInitialBalance: (b: number) => void;
   setLastResult: (r: BacktestResult | null) => void;
@@ -56,6 +63,7 @@ interface StrategyState extends ArbStoreConfig, MRStoreConfig, ScenarioLabConfig
   setExtraCashUsd: (v: number) => void;
   setDcaParams: (usd: number, periods: number) => void;
   setLastScenarioResult: (r: BacktestResult | null) => void;
+  setCostModelPreset: (preset: 'none' | 'coinbase' | 'kraken') => void;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -71,6 +79,8 @@ export const useStrategyStore = create<StrategyState>()(
       arbTradeSize: 500,
       arbAsset1: 'pax-gold',
       arbAsset2: 'tether-gold',
+      arbRegimeGateEnabled: true,
+      regimeGateConfig: { ...DEFAULT_REGIME_GATE_CONFIG },
 
       // Mean-reversion defaults
       mrAsset: 'bitcoin',
@@ -94,10 +104,13 @@ export const useStrategyStore = create<StrategyState>()(
       dcaUsdPerPeriod: 100,
       dcaPeriodCount: 6,
       lastScenarioResult: null,
+      costModelPreset: 'none',
 
       // ── Actions ──────────────────────────────────────────────────────────
       setStrategyType: (t) => set({ strategyType: t }),
       setArbConfig: (c) => set((s) => ({ ...s, ...c })),
+      setRegimeGateConfig: (c) =>
+        set((s) => ({ regimeGateConfig: { ...s.regimeGateConfig, ...c } })),
       setMrConfig: (c) => set((s) => ({ ...s, ...c })),
       setInitialBalance: (b) => set({ initialBalance: b }),
       setLastResult: (r) => set({ lastResult: r }),
@@ -111,6 +124,7 @@ export const useStrategyStore = create<StrategyState>()(
       setExtraCashUsd: (v) => set({ extraCashUsd: Math.max(0, v) }),
       setDcaParams: (usd, periods) => set({ dcaUsdPerPeriod: Math.max(0, usd), dcaPeriodCount: Math.max(0, periods) }),
       setLastScenarioResult: (r) => set({ lastScenarioResult: r }),
+      setCostModelPreset: (preset) => set({ costModelPreset: preset }),
     }),
     {
       name: 'goldtrackr-strategy',

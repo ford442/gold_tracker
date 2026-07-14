@@ -11,9 +11,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { usePriceStore } from '../store/priceStore';
-import { formatPrice, formatPercent } from '../lib/utils';
-import type { MetalSpot } from '../types';
+import { usePriceStore } from '@/store/priceStore';
+import { formatPrice, formatPercent } from '@lib/utils';
+import type { MetalSpot } from '@/types';
 import { CardSkeleton } from './LoadingSkeleton';
 
 // Metal icon mapping

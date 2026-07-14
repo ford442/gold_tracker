@@ -3,154 +3,18 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { usePriceStore } from '../store/priceStore';
+import { usePriceStore } from '@/store/priceStore';
 import { ChartSkeleton } from './LoadingSkeleton';
-import { fetchMarketChartSeries } from '../lib/api';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/**
- * Month-aligned national fiscal calendars (see Wikipedia "Fiscal year").
- * startMonth is the 0-indexed calendar month the fiscal year begins.
- * The calendar-year group doubles as the plain "yearly pattern" baseline.
- */
-const FISCAL_CALENDARS = [
-  { id: 'calendar', label: 'Calendar Year', nations: 'China · Germany · Russia · Brazil', startMonth: 0, color: '#f0c845' },
-  { id: 'april',    label: 'April Start',   nations: 'UK · India · Japan · Canada',       startMonth: 3, color: '#10b981' },
-  { id: 'july',     label: 'July Start',    nations: 'Australia · Egypt · Pakistan',      startMonth: 6, color: '#f472b6' },
-  { id: 'october',  label: 'October Start', nations: 'United States · Thailand',          startMonth: 9, color: '#60a5fa' },
-] as const;
-
-type FiscalCalendarId = typeof FISCAL_CALENDARS[number]['id'];
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface FiscalYearReturn {
-  label: string;       // e.g. "FY2022/23" or "2023"
-  returnPct: number;   // % change from fiscal month 1 to last available month
-  monthsCovered: number;
-  complete: boolean;   // all 12 fiscal months present
-}
-
-interface FiscalCalendarStats {
-  id: FiscalCalendarId;
-  /** Average cumulative % change since FY start, indexed by fiscal month (0-11). */
-  avgTrajectory: (number | null)[];
-  /** How many fiscal years contributed to each fiscal month average. */
-  yearCount: number;
-  fyReturns: FiscalYearReturn[];
-}
-
-interface FiscalChartPoint {
-  fiscalMonth: number; // 1-12
-  [calendarId: string]: number | null;
-}
-
-// ─── Data helpers ─────────────────────────────────────────────────────────────
-
-/** Deterministic fallback series (~6 years, monthly seasonality + upward drift). */
-function generateMockGoldHistory(currentPrice: number): [number, number][] {
-  const days = 365 * 6;
-  const now = Date.now();
-  const startPrice = currentPrice / 2.2; // rough long-run appreciation
-  let seed = 42;
-  const rand = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
-  return Array.from({ length: days }, (_, i) => {
-    const ts = now - (days - i) * 86400000;
-    const progress = i / days;
-    const trend = startPrice * Math.pow(currentPrice / startPrice, progress);
-    const dayOfYear = new Date(ts).getUTCMonth() * 30 + new Date(ts).getUTCDate();
-    const seasonal = 1 + 0.025 * Math.sin(((dayOfYear - 45) / 365) * 2 * Math.PI);
-    const noise = 1 + (rand() - 0.5) * 0.02;
-    return [ts, Math.round(trend * seasonal * noise * 100) / 100];
-  });
-}
-
-/** Collapse a daily [ts, price][] series into average price per calendar month. */
-function monthlyAverages(series: [number, number][]): Map<string, number> {
-  const buckets = new Map<string, { sum: number; n: number }>();
-  for (const [ts, price] of series) {
-    const d = new Date(ts);
-    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
-    const b = buckets.get(key) ?? { sum: 0, n: 0 };
-    b.sum += price;
-    b.n += 1;
-    buckets.set(key, b);
-  }
-  const out = new Map<string, number>();
-  for (const [key, { sum, n }] of buckets) out.set(key, sum / n);
-  return out;
-}
-
-function fiscalYearLabel(startYear: number, startMonth: number): string {
-  if (startMonth === 0) return `${startYear}`;
-  return `FY${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`;
-}
-
-/**
- * Re-index the monthly price history onto one fiscal calendar:
- * for every fiscal year in the data, compute the cumulative % change from
- * fiscal month 1, then average each fiscal month across all years.
- */
-function computeFiscalStats(
-  monthly: Map<string, number>,
-  calendar: typeof FISCAL_CALENDARS[number],
-): FiscalCalendarStats {
-  const years = [...monthly.keys()].map((k) => parseInt(k.split('-')[0], 10));
-  const minYear = Math.min(...years);
-  const maxYear = Math.max(...years);
-
-  const perMonthPcts: number[][] = Array.from({ length: 12 }, () => []);
-  const fyReturns: FiscalYearReturn[] = [];
-
-  for (let startYear = minYear - 1; startYear <= maxYear; startYear++) {
-    const startPrice = monthly.get(`${startYear}-${calendar.startMonth}`);
-    if (!startPrice) continue;
-
-    let lastPct = 0;
-    let monthsCovered = 0;
-    for (let fm = 0; fm < 12; fm++) {
-      const calMonth = (calendar.startMonth + fm) % 12;
-      const calYear = startYear + (calendar.startMonth + fm >= 12 ? 1 : 0);
-      const price = monthly.get(`${calYear}-${calMonth}`);
-      if (price === undefined) continue;
-      const pct = ((price - startPrice) / startPrice) * 100;
-      perMonthPcts[fm].push(pct);
-      lastPct = pct;
-      monthsCovered = fm + 1;
-    }
-
-    // Need at least half a fiscal year before it says anything about the pattern
-    if (monthsCovered >= 6) {
-      fyReturns.push({
-        label: fiscalYearLabel(startYear, calendar.startMonth),
-        returnPct: lastPct,
-        monthsCovered,
-        complete: monthsCovered === 12,
-      });
-    }
-  }
-
-  const avgTrajectory = perMonthPcts.map((pcts) =>
-    pcts.length > 0
-      ? Math.round((pcts.reduce((s, p) => s + p, 0) / pcts.length) * 100) / 100
-      : null,
-  );
-
-  return {
-    id: calendar.id,
-    avgTrajectory,
-    yearCount: fyReturns.length,
-    fyReturns,
-  };
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
+import { fetchMarketChartSeries } from '@lib/api';
+import {
+  FISCAL_CALENDARS,
+  MONTH_NAMES,
+  buildFiscalChartData,
+  buildFiscalSummaryRows,
+  computeAllFiscalStats,
+  generateMockGoldHistory,
+  type FiscalCalendarId,
+} from '@lib/fiscalYear';
 
 function CalendarToggle({
   label,
@@ -196,8 +60,6 @@ function CalendarToggle({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export function FiscalYearChart() {
   const { goldSpot, prices } = usePriceStore();
 
@@ -209,7 +71,6 @@ export function FiscalYearChart() {
   );
   const abortRef = useRef<AbortController | null>(null);
 
-  // Fetch full PAXG history once as the gold proxy (longest free daily series)
   useEffect(() => {
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -219,7 +80,6 @@ export function FiscalYearChart() {
     const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
     fetchMarketChartSeries('pax-gold', 'max', 'daily', controller.signal, apiKey)
       .then((series) => {
-        // Need 2+ years of data for a meaningful cross-year average
         if (series.length >= 730) {
           setHistory(series);
           setIsEstimated(false);
@@ -240,26 +100,15 @@ export function FiscalYearChart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const stats = useMemo(() => {
-    if (history.length === 0) return [];
-    const monthly = monthlyAverages(history);
-    return FISCAL_CALENDARS.map((cal) => computeFiscalStats(monthly, cal));
-  }, [history]);
-
-  const chartData = useMemo<FiscalChartPoint[]>(() => {
-    if (stats.length === 0) return [];
-    return Array.from({ length: 12 }, (_, fm) => {
-      const pt: FiscalChartPoint = { fiscalMonth: fm + 1 };
-      for (const s of stats) pt[s.id] = s.avgTrajectory[fm];
-      return pt;
-    });
-  }, [stats]);
+  const stats = useMemo(() => computeAllFiscalStats(history), [history]);
+  const chartData = useMemo(() => buildFiscalChartData(stats), [stats]);
+  const summaryRows = useMemo(() => buildFiscalSummaryRows(stats), [stats]);
 
   const toggleCalendar = (id: FiscalCalendarId) => {
     setActiveCalendars((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
-        if (next.size > 1) next.delete(id); // keep at least one
+        if (next.size > 1) next.delete(id);
       } else {
         next.add(id);
       }
@@ -267,27 +116,8 @@ export function FiscalYearChart() {
     });
   };
 
-  const summaryRows = useMemo(() => {
-    return FISCAL_CALENDARS.map((cal) => {
-      const s = stats.find((x) => x.id === cal.id);
-      const completed = s?.fyReturns.filter((r) => r.complete) ?? [];
-      const current = s?.fyReturns.find((r) => !r.complete);
-      const avg = completed.length > 0
-        ? completed.reduce((sum, r) => sum + r.returnPct, 0) / completed.length
-        : null;
-      const best = completed.length > 0
-        ? completed.reduce((a, b) => (a.returnPct > b.returnPct ? a : b))
-        : null;
-      const worst = completed.length > 0
-        ? completed.reduce((a, b) => (a.returnPct < b.returnPct ? a : b))
-        : null;
-      return { ...cal, completed, current, avg, best, worst };
-    });
-  }, [stats]);
-
   return (
     <section aria-label="Gold Fiscal Year Seasonality">
-      {/* Section header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -402,7 +232,6 @@ export function FiscalYearChart() {
           </div>
         )}
 
-        {/* Per-calendar fiscal year return summary */}
         {!isLoading && (
           <div style={{ overflowX: 'auto', marginTop: '16px' }}>
             <table

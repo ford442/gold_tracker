@@ -1,74 +1,81 @@
-name: Build and Deploy Gold Trackr
+name: CI
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
+      # Fails on errors only; 1 known warning in StrategyDashboard.tsx (react-hooks/exhaustive-deps).
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Coverage gate (src/lib ≥ 70%)
+        run: npm run test:coverage
+
       - name: Create env file from secrets
+        if: github.event_name != 'pull_request'
         run: |
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.local
-          echo "✅ Environment file created"
-          
+
       - name: Build
         run: npm run build
-        
-      - name: Fix relative paths and add cache-busting
+
+      - name: Add cache-busting meta tags
+        if: github.event_name != 'pull_request'
         run: |
-          sed -i 's|src="/|src="./|g' dist/index.html
-          sed -i 's|href="/|href="./|g' dist/index.html
-          # Add cache-busting meta tag and timestamp
-          TIMESTAMP=$(date +%s)
           sed -i 's|<head>|<head>\n  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n  <meta http-equiv="Pragma" content="no-cache">\n  <meta http-equiv="Expires" content="0">|' dist/index.html
-          # Append version to JS/CSS references for cache busting
-          sed -i "s|\.js\"|.js?v=$TIMESTAMP\"|g" dist/index.html
-          sed -i "s|\.css\"|.css?v=$TIMESTAMP\"|g" dist/index.html
-          echo "✅ Paths fixed and cache-busting added (v$TIMESTAMP)"
-          
+
       - name: Upload build artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: goldtrackr-dist
           path: dist/
           retention-days: 30
-          
+
+      - name: Setup SSH deploy key
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
       - name: Deploy to server
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           SSH_PATH: ${{ secrets.SSH_PATH }}
         run: |
-          echo "📤 Deploying to server..."
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq sshpass rsync
-          
-          # Create SSH command with no host key checking
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          
-          # Deploy using rsync over SSH
-          sshpass -p "$SSH_PASSWORD" rsync -avz --delete \
-            -e "ssh $SSH_OPTS" \
+          rsync -avz --delete \
+            -e ssh \
             dist/ \
             "$SSH_USER@$SSH_HOST:$SSH_PATH/"
-          
-          echo "✅ Deployment complete!"

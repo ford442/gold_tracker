@@ -72,6 +72,7 @@ export function calculateKrakenSavings(spreadPercent: number): {
   savings: number;
   recommended: 'kraken' | 'coinbase';
 } {
+  void spreadPercent;
   const tradeSize = 1000; // USD assumption for calc
   
   // Coinbase Advanced: 0.6% taker fee per trade = 1.2% total
@@ -79,9 +80,6 @@ export function calculateKrakenSavings(spreadPercent: number): {
   
   // Kraken: 0.26% taker fee for one direct trade
   const krakenFee = tradeSize * 0.0026;
-  
-  const estimatedProfit = tradeSize * (spreadPercent / 100);
-  console.log('Estimated profit:', estimatedProfit); // Used for calculation display
   
   return {
     coinbaseCost: coinbaseFee,

@@ -11,6 +11,13 @@ export interface TradeSuggestion {
   // For execution
   productId: string;        // e.g. "PAXG-USD"
   side: 'BUY' | 'SELL';     // Primary action side
+  /** Regime context from sparkline fidelity (synthesized spot). */
+  regimeTag?: string;
+  regimeScore?: number;
+  regimeReason?: string;
+  regimeDisclaimer?: string;
+  /** When true, manual execution is discouraged — regime gate blocked. */
+  regimeBlocked?: boolean;
 }
 
 export type TradeSuggestionType = TradeSuggestion['type'];

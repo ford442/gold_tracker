@@ -1,6 +1,6 @@
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import type { GoldSpot } from '../types';
-import { formatPrice, formatPercent } from '../lib/utils';
+import type { GoldSpot } from '@/types';
+import { formatPrice, formatPercent } from '@lib/utils';
 
 interface Props {
   data: GoldSpot;
@@ -78,14 +78,14 @@ export function GoldSpotCard({ data }: Props) {
           </div>
         </div>
         <span 
-          className="badge badge-gold"
+          className={`badge ${data.isMock ? 'badge-red' : 'badge-gold'}`}
           style={{ 
             fontSize: '0.6rem',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
           }}
         >
-          Reference
+          {data.isMock ? 'Simulated' : 'Live'}
         </span>
       </div>
 

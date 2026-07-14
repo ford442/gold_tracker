@@ -1,4 +1,4 @@
-import type { SparklinePoint } from '../types';
+import type { SparklinePoint } from '@/types';
 
 export function formatPrice(price: number, decimals = 2): string {
   return new Intl.NumberFormat('en-US', {

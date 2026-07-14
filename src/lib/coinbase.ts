@@ -1,4 +1,7 @@
 import * as jose from 'jose';
+import { COINBASE_CURRENCY_TO_ASSET_ID } from './assets';
+
+export { COINBASE_CURRENCY_TO_ASSET_ID };
 
 export interface CoinbaseAccount {
   id: string;
@@ -6,16 +9,6 @@ export interface CoinbaseAccount {
   currency: { code: string; name: string };
   balance: { amount: string; currency: string };
 }
-
-// Map Coinbase currency codes to internal CoinGecko-style asset IDs
-export const COINBASE_CURRENCY_TO_ASSET_ID: Record<string, string> = {
-  BTC: 'bitcoin',
-  ETH: 'ethereum',
-  PAXG: 'pax-gold',
-  XAUT: 'tether-gold',
-  USDC: 'usd-coin',
-  XAU: 'gold',
-};
 
 async function importPrivateKey(privateKeyPem: string): Promise<CryptoKey> {
   const isPkcs8 = privateKeyPem.includes('-----BEGIN PRIVATE KEY-----');

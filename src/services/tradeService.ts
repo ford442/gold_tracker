@@ -1,6 +1,6 @@
-import { supabase } from '../lib/supabase';
-import type { TradeOrder, OrderResult } from '../lib/coinbaseTrader';
-import type { Exchange } from '../store/settingsStore';
+import { supabase } from '@lib/supabase';
+import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
+import type { Exchange } from '@/store/settingsStore';
 
 export const tradeService = {
   async storeKeys(exchange: Exchange, keys: Record<string, string>) {

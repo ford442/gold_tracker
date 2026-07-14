@@ -1,29 +1,22 @@
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import type { PriceData } from '../types';
-import { formatPrice, formatPercent } from '../lib/utils';
+import type { PriceData } from '@/types';
+import { assetIcon, isGoldToken } from '@lib/assets';
+import { formatPrice, formatPercent } from '@lib/utils';
 
 interface Props {
   data: PriceData;
   goldPrice?: number; // for premium/discount calculation
 }
 
-// Asset icons mapping
-const ASSET_ICONS: Record<string, string> = {
-  'pax-gold': '🪙',
-  'tether-gold': '🟡',
-  'bitcoin': '₿',
-  'ethereum': 'Ξ',
-  'bitcoin-cash': 'BCH',
-};
-
+// Asset icons mapping — see src/lib/assets.ts
 export function PriceCard({ data, goldPrice }: Props) {
   const isPositive24h = data.change24h >= 0;
   const isPositive7d = data.change7d >= 0;
-  const isGoldToken = data.id === 'pax-gold' || data.id === 'tether-gold';
-  const premium = isGoldToken && goldPrice ? ((data.price - goldPrice) / goldPrice) * 100 : null;
+  const isGoldTokenAsset = isGoldToken(data.id);
+  const premium = isGoldTokenAsset && goldPrice ? ((data.price - goldPrice) / goldPrice) * 100 : null;
 
   const sparkData = data.sparkline.slice(-24).map((p) => ({ price: p.price }));
-  const icon = ASSET_ICONS[data.id] || '💎';
+  const icon = assetIcon(data.id);
 
   return (
     <div 

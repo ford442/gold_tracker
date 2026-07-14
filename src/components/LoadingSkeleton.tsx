@@ -78,3 +78,29 @@ export function CardSkeleton() {
     </div>
   );
 }
+
+export function ModalSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Loading settings"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.55)',
+        padding: '24px',
+      }}
+    >
+      <div className="glass-card" style={{ width: 'min(480px, 100%)', padding: '20px' }}>
+        <Skeleton width="140px" height="22px" style={{ marginBottom: '16px' }} />
+        <Skeleton width="100%" height="48px" style={{ marginBottom: '10px' }} />
+        <Skeleton width="100%" height="48px" style={{ marginBottom: '10px' }} />
+        <Skeleton width="100%" height="120px" />
+      </div>
+    </div>
+  );
+}

@@ -39,6 +39,32 @@ npm run dev
 
 Without API keys, the app uses realistic mock data automatically.
 
+## Mobile & PWA
+
+GoldTrackr uses **section-based navigation** (one panel at a time), touch-friendly controls, and an optional installable PWA with offline price snapshots.
+
+See **[docs/MOBILE.md](docs/MOBILE.md)** for layout notes, PWA install steps, offline banner behavior, and **Lighthouse mobile performance targets** (Performance ≥ 85, Accessibility ≥ 90, etc.).
+
+```bash
+npm run build && npm run preview   # test PWA + production bundle locally
+```
+
+## Testing
+
+Pure math / strategy modules in `src/lib/` are covered by [Vitest](https://vitest.dev/) unit tests.
+
+```bash
+npm test              # run all tests once
+npm run test:watch    # watch mode during development
+npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
+```
+
+Coverage scope includes pure modules (`utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets`). Network/API client files (`api.ts`, `coinbase.ts`, `supabase.ts`) are excluded — see `vite.config.ts`.
+
+CI runs `npm run lint`, `npm test`, `npm run test:coverage`, and `npm run build` on every push and pull request to `main`. Lint fails the job on **errors** only; one known warning remains in `StrategyDashboard.tsx` (`react-hooks/exhaustive-deps`).
+
+On `main`, CI also uploads a `goldtrackr-dist` build artifact and deploys to the server via SSH deploy key (`SSH_PRIVATE_KEY` secret; replace legacy `SSH_PASSWORD` if still configured).
+
 ## Data Refresh
 
 - Prices: every **60 seconds**

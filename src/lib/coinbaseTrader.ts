@@ -1,4 +1,4 @@
-import { useSettingsStore } from '../store/settingsStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export interface TradeOrder {
   product_id: string;           // e.g. "PAXG-USD"

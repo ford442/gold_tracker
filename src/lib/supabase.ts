@@ -4,9 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Debug: Log environment variable status
-console.log('[Supabase] URL exists:', !!supabaseUrl);
-console.log('[Supabase] Key exists:', !!supabaseAnonKey);
+if (import.meta.env.DEV) {
+  console.log('[Supabase] URL exists:', !!supabaseUrl);
+  console.log('[Supabase] Key exists:', !!supabaseAnonKey);
+}
 
 // Create a mock client for when env vars are missing (graceful degradation)
 const createMockClient = () => {

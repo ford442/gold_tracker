@@ -2,7 +2,7 @@
 // Pure TypeScript; no React imports. All fluctuation/regime math lives here.
 // Follows the same contract as strategyEngine.ts: deterministic pure functions + JSDoc.
 
-import type { AnalysisHorizon, FidelityScore, RegimeAnalysisResult } from '../types';
+import type { AnalysisHorizon, FidelityScore, RegimeAnalysisResult } from '@/types';
 import { pearsonCorrelation } from './utils';
 
 /** Map horizon to CG-friendly params (daily for structural windows). */
@@ -132,6 +132,119 @@ export function classifyRegime(score: number): string {
   if (score >= 70) return 'Strong gold proxy';
   if (score >= 45) return 'Moderate gold tracking';
   return 'Crypto-beta dominant';
+}
+
+// ─── Regime gates (strategy + suggestions) ───────────────────────────────────
+
+/** User-configurable thresholds for PAXG/XAUT arb gating. */
+export interface RegimeGateConfig {
+  /** Minimum avg fidelity to allow arb without divergence override. */
+  minFidelityScore: number;
+  /** Avg fidelity at which full trade size is used. */
+  fullSizeFidelityScore: number;
+  /** Floor on size multiplier when allowed but fidelity is low. */
+  minSizeMultiplier: number;
+  /** corr(BTC) − corr(Gold) above this ⇒ crypto-like divergence. */
+  cryptoDivergenceDelta: number;
+  /** Allow arb when divergence detected even if fidelity below min. */
+  allowDivergenceOverride: boolean;
+}
+
+export const DEFAULT_REGIME_GATE_CONFIG: RegimeGateConfig = {
+  minFidelityScore: 45,
+  fullSizeFidelityScore: 70,
+  minSizeMultiplier: 0.35,
+  cryptoDivergenceDelta: 0.12,
+  allowDivergenceOverride: true,
+};
+
+export interface RegimeGateResult {
+  allowed: boolean;
+  sizeMultiplier: number;
+  regimeTag: string;
+  reason: string;
+  avgScore: number;
+  isCryptoLikeDivergence: boolean;
+  paxg: FidelityScore;
+  xaut: FidelityScore;
+}
+
+/**
+ * True when token behaves more like crypto than spot gold:
+ * low composite score OR BTC correlation materially exceeds gold correlation.
+ */
+export function isCryptoLikeDivergence(score: FidelityScore, delta = 0.12): boolean {
+  if (score.score < 45) return true;
+  return score.corrToBtc - score.corrToGold >= delta;
+}
+
+/** Map avg fidelity (+ optional divergence boost) → [minSize, 1] multiplier. */
+export function computeRegimeSizeMultiplier(
+  avgScore: number,
+  divergence: boolean,
+  config: RegimeGateConfig,
+): number {
+  const { minFidelityScore, fullSizeFidelityScore, minSizeMultiplier } = config;
+  if (avgScore >= fullSizeFidelityScore) return 1;
+  if (avgScore <= minFidelityScore) {
+    return divergence ? Math.max(minSizeMultiplier, 0.5) : minSizeMultiplier;
+  }
+  const t = (avgScore - minFidelityScore) / (fullSizeFidelityScore - minFidelityScore);
+  return minSizeMultiplier + t * (1 - minSizeMultiplier);
+}
+
+/**
+ * Gate PAXG/XAUT arb entries by structural fidelity regime.
+ * Exits are always allowed — this only sizes/blocks new entries.
+ */
+export function evaluateArbRegimeGate(
+  paxg: FidelityScore,
+  xaut: FidelityScore,
+  config: RegimeGateConfig = DEFAULT_REGIME_GATE_CONFIG,
+): RegimeGateResult {
+  const avgScore = (paxg.score + xaut.score) / 2;
+  const divergence =
+    isCryptoLikeDivergence(paxg, config.cryptoDivergenceDelta) ||
+    isCryptoLikeDivergence(xaut, config.cryptoDivergenceDelta);
+  const highFidelity = avgScore >= config.minFidelityScore;
+  const allowed = highFidelity || (config.allowDivergenceOverride && divergence);
+
+  let regimeTag: string;
+  if (highFidelity && divergence) regimeTag = 'Gold proxy + divergence';
+  else if (highFidelity) regimeTag = paxg.regimeLabel === xaut.regimeLabel ? paxg.regimeLabel : 'Mixed gold tracking';
+  else if (divergence) regimeTag = 'Crypto-beta divergence';
+  else regimeTag = 'Low fidelity — gated';
+
+  const sizeMultiplier = allowed ? computeRegimeSizeMultiplier(avgScore, divergence, config) : 0;
+  const reason = allowed
+    ? `Regime OK — avg fidelity ${avgScore.toFixed(0)} (${regimeTag}), ${Math.round(sizeMultiplier * 100)}% size`
+    : `Regime gate: avg fidelity ${avgScore.toFixed(0)} below ${config.minFidelityScore} — no divergence override`;
+
+  return {
+    allowed,
+    sizeMultiplier,
+    regimeTag,
+    reason,
+    avgScore,
+    isCryptoLikeDivergence: divergence,
+    paxg,
+    xaut,
+  };
+}
+
+/** Short tag for suggestion cards (includes synthesized-spot disclaimer when applicable). */
+export function formatRegimeTagForUi(
+  gate: RegimeGateResult,
+  isEstimatedSpot = true,
+): { tag: string; reason: string; disclaimer: string } {
+  const disclaimer = isEstimatedSpot
+    ? 'Fidelity from sparklines · spot gold path is synthesized/estimated — not financial advice.'
+    : 'Fidelity from sparklines — not financial advice.';
+  return {
+    tag: gate.regimeTag,
+    reason: gate.reason,
+    disclaimer,
+  };
 }
 
 /**

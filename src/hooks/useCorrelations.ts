@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
-import { usePriceStore } from '../store/priceStore';
-import { pearsonCorrelation, sparklinePrices } from '../lib/utils';
-import type { CorrelationMatrix, CorrelationPeriod } from '../types';
+import { usePriceStore } from '@/store/priceStore';
+import { pearsonCorrelation, sparklinePrices } from '@lib/utils';
+import type { CorrelationMatrix, CorrelationPeriod } from '@/types';
 
-const ASSET_KEYS = ['gold', 'pax-gold', 'tether-gold', 'bitcoin', 'ethereum'];
-const ASSET_LABELS = ['Gold', 'PAXG', 'XAUT', 'BTC', 'ETH'];
-
+import { CORRELATION_ASSET_IDS, correlationLabel } from '@lib/assets';
 const PERIOD_POINTS: Record<CorrelationPeriod, number> = {
   '1h': 6,
   '1d': 24,
@@ -32,8 +30,8 @@ export function useCorrelations(period: CorrelationPeriod): CorrelationMatrix {
       ethereum: prices['ethereum'] ? sparklinePrices(prices['ethereum'].sparkline, n) : [],
     };
 
-    const matrix: number[][] = ASSET_KEYS.map((a) =>
-      ASSET_KEYS.map((b) => {
+    const matrix: number[][] = CORRELATION_ASSET_IDS.map((a) =>
+      CORRELATION_ASSET_IDS.map((b) => {
         if (a === b) return 1;
         const sa = seriesMap[a];
         const sb = seriesMap[b];
@@ -42,6 +40,6 @@ export function useCorrelations(period: CorrelationPeriod): CorrelationMatrix {
       })
     );
 
-    return { period, assets: ASSET_LABELS, matrix };
+    return { period, assets: CORRELATION_ASSET_IDS.map(correlationLabel), matrix };
   }, [prices, goldSpot, period]);
 }

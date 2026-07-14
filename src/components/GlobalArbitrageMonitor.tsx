@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { usePriceStore } from '../store/priceStore';
-import { useSettingsStore } from '../store/settingsStore';
-import { useAuthStore } from '../store/useAuthStore';
-import { placeOrder } from '../lib/coinbaseTrader';
-import { tradeService } from '../services/tradeService';
+import { usePriceStore } from '@/store/priceStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { placeOrder } from '@lib/coinbaseTrader';
+import { tradeService } from '@/services/tradeService';
 import { toast, Toaster } from 'react-hot-toast';
-import type { TradeOrder, OrderResult } from '../lib/coinbaseTrader';
+import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
 
 // Skeleton loader component
 function SkeletonCard() {

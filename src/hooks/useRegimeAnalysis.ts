@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { usePriceStore } from '../store/priceStore';
+import { usePriceStore } from '@/store/priceStore';
 import { useCorrelations } from './useCorrelations';
-import { fetchMarketChartSeries } from '../lib/api';
+import { fetchMarketChartSeries } from '@lib/api';
 import {
   HORIZON_PARAMS,
   generateSyntheticSpotPrices,
@@ -11,9 +11,9 @@ import {
   alignToRefLength,
   downsample,
   makeFallbackResult,
-} from '../lib/regime';
-import { sparklinePrices } from '../lib/utils';
-import type { AnalysisHorizon, RegimeAnalysisResult } from '../types';
+} from '@lib/regime';
+import { sparklinePrices } from '@lib/utils';
+import type { AnalysisHorizon, RegimeAnalysisResult } from '@/types';
 
 const MAX_POINTS = 180; // downsample target for 1Y/MAX
 

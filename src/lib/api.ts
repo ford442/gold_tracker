@@ -1,6 +1,18 @@
-import type { PriceData, GoldSpot, MetalSpot, NewsItem, SparklinePoint } from '../types';
+import type { PriceData, GoldSpot, MetalSpot, NewsItem, SparklinePoint } from '@/types';
+import {
+  changesFromTimeframe,
+  isPlausibleGoldUsdPerOz,
+  parseGoldUsdPerOz,
+  parseMetalUsdPerOz,
+  sparklineFromTimeframe,
+  timeframeDateRange,
+  type MetalpriceRatesResponse,
+  type MetalpriceTimeframeResponse,
+} from './metalprice';
+import { COINGECKO_MARKET_IDS } from './assets';
 
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+const METALPRICE_BASE = 'https://api.metalpriceapi.com/v1';
 
 /**
  * Reusable thin wrapper for CoinGecko /coins/{id}/market_chart.
@@ -40,7 +52,7 @@ function mockSparkline(basePrice: number, points = 24): SparklinePoint[] {
 }
 
 export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string, PriceData> & { __mock?: boolean }> {
-  const ids = 'pax-gold,tether-gold,bitcoin,ethereum,bitcoin-cash';
+  const ids = COINGECKO_MARKET_IDS;
   const headers: Record<string, string> = {};
   if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
 
@@ -83,29 +95,77 @@ export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string,
   }
 }
 
-export async function fetchSpotGold(apiKey?: string): Promise<GoldSpot> {
-  if (apiKey) {
-    try {
-      const res = await fetch(
-        `https://api.metalpriceapi.com/v1/latest?api_key=${apiKey}&base=XAU&currencies=USD`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const pricePerGram = 1 / data.rates.USD;
-        const pricePerOz = pricePerGram * 31.1035;
-        return {
-          price: pricePerOz,
-          change24h: 0,
-          change7d: 0,
-          unit: 'USD/oz',
-          sparkline: mockSparkline(pricePerOz),
-        };
-      }
-    } catch (err) {
-      console.warn('MetalPrice fetch failed:', err);
-    }
+async function fetchMetalpriceJson<T extends { success: boolean }>(
+  path: string,
+  apiKey: string,
+): Promise<T | null> {
+  try {
+    const separator = path.includes('?') ? '&' : '?';
+    const res = await fetch(`${METALPRICE_BASE}${path}${separator}api_key=${encodeURIComponent(apiKey)}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as T;
+    return data.success ? data : null;
+  } catch {
+    return null;
   }
-  return getMockSpotGold();
+}
+
+export async function fetchSpotGold(apiKey?: string): Promise<GoldSpot & { __mock?: boolean }> {
+  if (!apiKey) {
+    return { ...getMockSpotGold(), __mock: true };
+  }
+
+  try {
+    const latest = await fetchMetalpriceJson<MetalpriceRatesResponse>(
+      '/latest?base=USD&currencies=XAU',
+      apiKey,
+    );
+
+    let pricePerOz = latest ? parseGoldUsdPerOz(latest.rates, latest.base) : null;
+
+    // Fallback: legacy base=XAU shape if USD-base parse fails
+    if (pricePerOz === null || !isPlausibleGoldUsdPerOz(pricePerOz)) {
+      const xauBase = await fetchMetalpriceJson<MetalpriceRatesResponse>(
+        '/latest?base=XAU&currencies=USD',
+        apiKey,
+      );
+      const alt = xauBase ? parseGoldUsdPerOz(xauBase.rates, xauBase.base) : null;
+      if (alt !== null && isPlausibleGoldUsdPerOz(alt)) {
+        pricePerOz = alt;
+      }
+    }
+
+    if (pricePerOz === null || !isPlausibleGoldUsdPerOz(pricePerOz)) {
+      console.warn('MetalPrice spot gold failed sanity check, using mock data');
+      return { ...getMockSpotGold(), __mock: true };
+    }
+
+    const { start, end } = timeframeDateRange(7);
+    const history = await fetchMetalpriceJson<MetalpriceTimeframeResponse>(
+      `/timeframe?base=USD&currencies=XAU&start_date=${start}&end_date=${end}`,
+      apiKey,
+    );
+
+    const sparkline = history && Object.keys(history.rates).length > 0
+      ? sparklineFromTimeframe(history)
+      : mockSparkline(pricePerOz);
+
+    const { change24h, change7d } = history
+      ? changesFromTimeframe(history)
+      : { change24h: 0, change7d: 0 };
+
+    return {
+      price: pricePerOz,
+      change24h,
+      change7d,
+      unit: 'USD/oz',
+      sparkline: sparkline.length > 1 ? sparkline : mockSparkline(pricePerOz),
+      isMock: false,
+    };
+  } catch (err) {
+    console.warn('MetalPrice fetch failed:', err);
+    return { ...getMockSpotGold(), __mock: true };
+  }
 }
 
 // Fetch silver, platinum, and palladium spot prices
@@ -126,11 +186,8 @@ export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
       if (res.ok) {
         const data = await res.json();
         return metals.map((m) => {
-          // MetalPrice API returns grams of metal per 1 USD when base=USD.
-          // Invert to get USD per gram, then multiply by troy ounce weight (31.1035 g) for USD/oz.
-          const gramsPerUsd: number = data.rates[m.symbol] ?? 0;
-          const pricePerGram = gramsPerUsd > 0 ? 1 / gramsPerUsd : 0;
-          const pricePerOz = pricePerGram * 31.1035;
+          // MetalPrice API returns troy oz of metal per 1 USD when base=USD (see metalprice.ts).
+          const pricePerOz = parseMetalUsdPerOz(data.rates, m.symbol, data.base) ?? 0;
           return {
             id: m.id,
             symbol: m.symbol,
@@ -192,6 +249,7 @@ export function getMockSpotGold(): GoldSpot {
     change7d: 1.8,
     unit: 'USD/oz',
     sparkline: mockSparkline(price),
+    isMock: true,
   };
 }
 

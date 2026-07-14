@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
+import { ASSETS, PERFORMANCE_COMPARISON_ASSET_IDS } from '@lib/assets';
 import { ChartSkeleton } from './LoadingSkeleton';
 
-const ASSETS = [
-  { id: 'pax-gold',     name: 'PAXG',   color: '#10b981' }, // emerald
-  { id: 'tether-gold',  name: 'XAUT',   color: '#14b8a6' }, // teal
-  { id: 'bitcoin',      name: 'BTC',    color: '#f59e0b' }, // amber
-  { id: 'ethereum',     name: 'ETH',    color: '#8b5cf6' }, // violet
-  { id: 'bitcoin-cash', name: 'BCH',    color: '#3b82f6' }, // blue
-];
+const PERFORMANCE_ASSETS = PERFORMANCE_COMPARISON_ASSET_IDS.map((id) => ({
+  id: ASSETS[id].cgId ?? id,
+  name: ASSETS[id].symbol,
+  color: ASSETS[id].chartColor,
+}));
 
 interface ChartPoint {
   day: string;
@@ -26,7 +25,7 @@ export function PerformanceComparisonChart() {
         const days = 14;
         const merged: Record<number, ChartPoint> = {};
 
-        for (const asset of ASSETS) {
+        for (const asset of PERFORMANCE_ASSETS) {
           const res = await fetch(
             `https://api.coingecko.com/api/v3/coins/${asset.id}/market_chart?vs_currency=usd&days=${days}&interval=daily`
           );
@@ -137,7 +136,7 @@ export function PerformanceComparisonChart() {
                 wrapperStyle={{ color: 'var(--color-text)', paddingTop: '20px' }}
               />
 
-              {ASSETS.map((asset) => (
+              {PERFORMANCE_ASSETS.map((asset) => (
                 <Line
                   key={asset.id}
                   type="monotone"
@@ -159,7 +158,7 @@ export function PerformanceComparisonChart() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
           gap: '10px',
         }}>
-          {ASSETS.map((asset) => {
+          {PERFORMANCE_ASSETS.map((asset) => {
             const latest = data[data.length - 1]?.[asset.name] as number || 0;
             return (
               <div key={asset.name} style={{
