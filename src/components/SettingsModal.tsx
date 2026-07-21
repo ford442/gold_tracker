@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { tradeService } from '@/services/tradeService';
-import { testConnection } from '@lib/coinbaseTrader';
+import { getAdapter, adapterCredentialsFromSettings } from '@lib/exchangeAdapters';
 import { AccordionPanel, type AccordionSection } from './settings/SectionHeader';
 import { SecurityWarnings } from './settings/SecurityWarnings';
 import { AuthPanel } from './settings/AuthPanel';
 import { ExchangeSelector, ApiKeysForm } from './settings/ExchangeKeysForm';
 import { RiskManagementPanel, AutoTradePanel } from './settings/DryRunToggles';
+import { DataFeedPanel } from './settings/DataFeedPanel';
 import { AlertRulesSettingsPanel } from './settings/AlertRulesSettingsPanel';
 import { describeStoredKey } from '@lib/keyDisplay';
 
@@ -59,12 +60,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (user) {
         const success = await tradeService.testConnectionServerSide(selectedExchange);
         setTestStatus(success ? 'success' : 'error');
-      } else if (selectedExchange === 'coinbase') {
-        const success = await testConnection();
-        setTestStatus(success ? 'success' : 'error');
       } else {
-        alert('Kraken testing requires Supabase login');
-        setTestStatus('error');
+        const adapter = getAdapter(selectedExchange);
+        const creds = adapterCredentialsFromSettings({
+          cdpKeyName,
+          cdpPrivateKey,
+          krakenApiKey,
+          krakenApiSecret,
+        });
+        const success = (await adapter?.testConnection(creds)) ?? false;
+        setTestStatus(success ? 'success' : 'error');
       }
     } catch {
       setTestStatus('error');
@@ -220,12 +225,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </AccordionPanel>
 
           <AccordionPanel
+            section="data"
+            title="Price Data Feed"
+            icon="📡"
+            openSection={openSection}
+            onToggle={toggleSection}
+            maxHeight="280px"
+          >
+            <DataFeedPanel />
+          </AccordionPanel>
+
+          <AccordionPanel
             section="risk"
             title="Risk Management"
             icon="⚖️"
             openSection={openSection}
             onToggle={toggleSection}
-            maxHeight="300px"
+            maxHeight="520px"
           >
             <RiskManagementPanel />
           </AccordionPanel>

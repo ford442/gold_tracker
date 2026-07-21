@@ -75,6 +75,7 @@ export default defineConfig({
       '@': path.resolve(rootDir, 'src'),
       '@lib': path.resolve(rootDir, 'src/lib'),
       '@components': path.resolve(rootDir, 'src/components'),
+      '@shared': path.resolve(rootDir, 'shared'),
     },
   },
   build: {
@@ -115,7 +116,7 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'shared/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       // Pure math / strategy modules only — API clients (api.ts, coinbase.ts, supabase.ts) are out of scope.
@@ -130,8 +131,15 @@ export default defineConfig({
         'src/lib/alertRules.ts',
         'src/lib/paperTrade.ts',
         'src/lib/exchanges.ts',
+        'shared/registry.ts',
         'src/lib/marketCache.ts',
+        'src/lib/priceTransport.ts',
+        'src/lib/venueQuotes.ts',
         'src/lib/portfolioLots.ts',
+        'src/lib/orderLifecycle.ts',
+        'src/lib/riskEngine.ts',
+        'src/lib/newsParser.ts',
+        'src/lib/analyticsDispatch.ts',
       ],
       exclude: ['src/lib/**/*.test.ts'],
       thresholds: {

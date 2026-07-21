@@ -23,9 +23,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (authInitialized) return;
     authInitialized = true;
 
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      set({ user: data.session?.user ?? null, session: data.session, loading: false });
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data }: { data: { session: Session | null } }) => {
+        set({ user: data.session?.user ?? null, session: data.session, loading: false });
+      })
+      .catch(() => {
+        set({ loading: false });
+      });
 
     supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       set({ user: session?.user ?? null, session, loading: false });

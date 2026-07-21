@@ -1,0 +1,20 @@
+{
+  "fetchedAt": 1700000000000,
+  "venues": [
+    {
+      "venueId": "kraken",
+      "paxgUsd": { "bid": 2578.0, "ask": 2580.0 },
+      "xautUsd": { "bid": 2610.0, "ask": 2612.0 },
+      "paxgXautDirect": { "bid": 1.012, "ask": 1.015 }
+    },
+    {
+      "venueId": "coinbase",
+      "paxgUsd": { "bid": 2590.0, "ask": 2593.0 },
+      "xautUsd": { "bid": 2640.0, "ask": 2643.0 }
+    },
+    {
+      "venueId": "gemini",
+      "paxgUsd": { "bid": 2585.0, "ask": 2587.0 }
+    }
+  ]
+}

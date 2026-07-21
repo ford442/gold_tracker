@@ -593,7 +593,7 @@ export function runBacktest(
 
   const state: EngineState = {
     balanceUSD: initialBalance,
-    positions: initialPositions ? JSON.parse(JSON.stringify(initialPositions)) : {},
+    positions: initialPositions ? structuredClone(initialPositions) : {},
   };
 
   const trades: TradeLog[] = [];

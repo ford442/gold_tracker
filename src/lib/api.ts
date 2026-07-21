@@ -14,6 +14,23 @@ import { COINGECKO_MARKET_IDS } from './assets';
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 const METALPRICE_BASE = 'https://api.metalpriceapi.com/v1';
 
+interface CoinGeckoMarketCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  price_change_percentage_24h?: number;
+  price_change_percentage_7d_in_currency?: number;
+  sparkline_in_7d?: { price?: number[] };
+  total_volume?: number;
+  market_cap?: number;
+}
+
+function parseCoinGeckoMarkets(raw: unknown): CoinGeckoMarketCoin[] {
+  if (!Array.isArray(raw)) return [];
+  return raw as CoinGeckoMarketCoin[];
+}
+
 /**
  * Reusable thin wrapper for CoinGecko /coins/{id}/market_chart.
  * Returns the raw [ts, price][] or [] on error (caller decides fallback).
@@ -65,7 +82,7 @@ export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string,
     })}`, { headers });
 
     if (!res.ok) throw new Error(`CoinGecko error: ${res.status}`);
-    const data = await res.json();
+    const data = parseCoinGeckoMarkets(await res.json());
 
     const result: Record<string, PriceData> = {};
     for (const coin of data) {
@@ -184,7 +201,7 @@ export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
         `https://api.metalpriceapi.com/v1/latest?api_key=${apiKey}&base=USD&currencies=${symbols}`
       );
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as MetalpriceRatesResponse;
         return metals.map((m) => {
           // MetalPrice API returns troy oz of metal per 1 USD when base=USD (see metalprice.ts).
           const pricePerOz = parseMetalUsdPerOz(data.rates, m.symbol, data.base) ?? 0;
@@ -207,10 +224,11 @@ export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
   return getMockOtherMetals();
 }
 
-// Note: RSS fetching disabled due to CORS proxy reliability issues
-// News updates can be added via Supabase in the future
+/** @deprecated Use fetchLiveNews from services/newsService */
 export async function fetchGoldNews(): Promise<NewsItem[]> {
-  return getMockNews();
+  const { fetchLiveNews } = await import('@/services/newsService');
+  const result = await fetchLiveNews();
+  return result.items;
 }
 
 // Mock data for development / API-key-free usage

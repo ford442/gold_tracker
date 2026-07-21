@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { PriceData, GoldSpot, MetalSpot } from '@/types';
+import type { PriceTransportMode, TransportKind } from '@lib/priceTransport';
 
 interface PriceStore {
   prices: Record<string, PriceData>;
@@ -13,12 +14,16 @@ interface PriceStore {
   isFromCache: boolean;
   /** Timestamp of the snapshot used when isFromCache is true. */
   snapshotSavedAt: number | null;
+  transportKind: TransportKind;
+  priceTransportMode: PriceTransportMode;
   setPrices: (prices: Record<string, PriceData>) => void;
+  patchPrices: (patches: Record<string, { price: number }>) => void;
   setGoldSpot: (spot: GoldSpot) => void;
   setOtherMetals: (metals: MetalSpot[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setIsMockData: (isMock: boolean) => void;
+  setTransportMeta: (meta: { kind: TransportKind; mode: PriceTransportMode }) => void;
   hydrateFromSnapshot: (payload: {
     prices: Record<string, PriceData>;
     goldSpot: GoldSpot | null;
@@ -38,6 +43,8 @@ export const usePriceStore = create<PriceStore>((set) => ({
   isMockData: false,
   isFromCache: false,
   snapshotSavedAt: null,
+  transportKind: 'poll',
+  priceTransportMode: 'auto',
   setPrices: (prices) => set({
     prices,
     lastUpdated: Date.now(),
@@ -50,6 +57,28 @@ export const usePriceStore = create<PriceStore>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),
   setIsMockData: (isMockData) => set({ isMockData }),
+  patchPrices: (patches) => set((state) => {
+    const nextPrices = { ...state.prices };
+    let changed = false;
+    for (const [id, patch] of Object.entries(patches)) {
+      const existing = nextPrices[id];
+      if (existing && existing.price !== patch.price) {
+        nextPrices[id] = { ...existing, price: patch.price };
+        changed = true;
+      }
+    }
+    if (!changed) return state;
+    return {
+      prices: nextPrices,
+      lastUpdated: Date.now(),
+      isFromCache: false,
+      snapshotSavedAt: null,
+    };
+  }),
+  setTransportMeta: ({ kind, mode }) => set({
+    transportKind: kind,
+    priceTransportMode: mode,
+  }),
   hydrateFromSnapshot: (payload) => set({
     prices: payload.prices,
     goldSpot: payload.goldSpot,

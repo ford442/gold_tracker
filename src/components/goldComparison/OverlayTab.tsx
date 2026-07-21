@@ -4,7 +4,7 @@ import {
   Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { usePriceStore } from '@/store/priceStore';
-import { ChartSkeleton } from '../LoadingSkeleton';
+import { ChartSkeleton } from '@/components/LoadingSkeleton';
 import { pearsonCorrelation } from '@lib/utils';
 import { getMarketChartSeries } from '@lib/marketCache';
 import type { ChartRange } from '@/types';

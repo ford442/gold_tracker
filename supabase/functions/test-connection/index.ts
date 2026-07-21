@@ -2,6 +2,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as jose from 'https://esm.sh/jose@4.15.5'
+import {
+  isLiveTradingExchange,
+  liveTradingExchangeLabels,
+} from '../_shared/registry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,9 +47,12 @@ serve(async (req: Request) => {
   const { exchange = 'coinbase' } = body
 
   // Validate exchange
-  if (!['coinbase', 'kraken'].includes(exchange)) {
+  if (!isLiveTradingExchange(exchange)) {
     return new Response(
-      JSON.stringify({ success: false, error: 'Invalid exchange. Use "coinbase" or "kraken"' }),
+      JSON.stringify({
+        success: false,
+        error: `Invalid exchange. Use ${liveTradingExchangeLabels()}`,
+      }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

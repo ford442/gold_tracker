@@ -40,6 +40,7 @@ supabase link --project-ref your-project-ref
 supabase functions deploy store-key
 supabase functions deploy place-trade
 supabase functions deploy test-connection
+supabase functions deploy fetch-news
 
 # Or deploy all at once
 supabase functions deploy
@@ -58,6 +59,15 @@ curl -X POST \
 ```
 
 ## API Reference
+
+### Fetch News (public)
+
+```bash
+GET /functions/v1/fetch-news
+apikey: <anon-key>
+```
+
+No JWT required. Returns cached RSS headlines from Kitco and MINING.com.
 
 ### Store Keys
 

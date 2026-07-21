@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { maskCdpKeyName, maskSecret } from '../keyDisplay';
+import { maskCdpKeyName, maskSecret } from '@/lib/keyDisplay';
 
 describe('keyDisplay', () => {
   it('masks generic secrets', () => {

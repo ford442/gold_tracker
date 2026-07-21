@@ -11,7 +11,8 @@
     "paths": {
       "@/*": ["src/*"],
       "@lib/*": ["src/lib/*"],
-      "@components/*": ["src/components/*"]
+      "@components/*": ["src/components/*"],
+      "@shared/*": ["shared/*"]
     },
 
     /* Bundler mode */
@@ -30,5 +31,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src", "shared"]
 }

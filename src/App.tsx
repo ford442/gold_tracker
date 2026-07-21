@@ -6,6 +6,7 @@ import { SectionFallback } from '@components/SectionFallback';
 import { ModalSkeleton } from '@components/LoadingSkeleton';
 import { useGoldPrices } from '@/hooks/useGoldPrices';
 import { useAppSection } from '@/hooks/useAppSection';
+import { useOrderReconciliation } from '@/hooks/useOrderReconciliation';
 import { useThemeStore } from '@/store/themeStore';
 import {
   APP_SECTIONS,
@@ -44,6 +45,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const { section, setSection } = useAppSection();
+  useOrderReconciliation();
 
   const openSettings = useCallback(() => {
     setSettingsMounted(true);
@@ -164,7 +166,7 @@ function App() {
 
       <footer className="app-footer" role="contentinfo">
         <div style={{ marginBottom: '6px', letterSpacing: '0.02em' }}>
-          Data: CoinGecko · MetalPrice API · News (mock) · Auto-refresh every 60s
+          Data: CoinGecko · MetalPrice API · News (live via Supabase · mock offline) · Auto-refresh every 60s
         </div>
         <div style={{ fontSize: '0.68rem', opacity: 0.6 }}>
           Not financial advice · Keys: 1–5 sections · ← → navigate · D theme · R refresh · S settings

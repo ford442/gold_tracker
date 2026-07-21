@@ -4,9 +4,9 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { usePriceStore } from '@/store/priceStore';
 import { usePaperTradeStore } from '@/store/paperTradeStore';
-import { tradeService } from '@/services/tradeService';
-import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
-import { getAdapter } from '@lib/exchangeAdapters';
+import { useRiskContext } from '@/hooks/useRiskContext';
+import { buildMarketIocOrder } from '@lib/orderTypes';
+import { executeOrderWithLifecycle, OrderExecutionError } from '@lib/executeOrder';
 import { baseSymbolFromProductId, buildPaperFill } from '@lib/paperTrade';
 import { fromSymbol } from '@lib/assets';
 import type { TradeSuggestion } from '@/types/TradeSuggestion';
@@ -15,11 +15,27 @@ interface UseTradeExecutionOptions {
   onKrakenAuthRequired: () => void;
 }
 
+function showRiskBlockToast(reasons: string[], nfaCopy: string) {
+  toast.error(
+    <div className="flex flex-col">
+      <span className="font-semibold">Risk guardrail blocked trade</span>
+      <ul className="text-sm mt-1 list-disc pl-4">
+        {reasons.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+      <span className="text-xs text-gray-500 mt-2">{nfaCopy}</span>
+    </div>,
+    { duration: 7000 },
+  );
+}
+
 export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOptions) {
   const { dryRun, maxTradeSize, selectedExchange } = useSettingsStore();
   const { user } = useAuthStore();
   const { prices, goldSpot } = usePriceStore();
   const recordFill = usePaperTradeStore((s) => s.recordFill);
+  const { checkOrderRisk, nfaCopy, priceMap } = useRiskContext();
   const [executingId, setExecutingId] = useState<string | null>(null);
 
   const priceForProduct = (productId: string): number => {
@@ -34,17 +50,51 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
 
     setExecutingId(suggestion.id);
 
-    // Dry run == PAPER trade: record a simulated fill to the local ledger and
-    // return without touching any exchange API, so practice needs no live keys
-    // and can never be mistaken for a real order.
+    const unitPrice = priceForProduct(suggestion.productId);
+    const mode = dryRun ? 'paper' : 'live';
+    let qty = maxTradeSize;
+
+    const risk = checkOrderRisk({
+      productId: suggestion.productId,
+      side: suggestion.side,
+      requestedQty: qty,
+      unitPriceUsd: unitPrice,
+      mode,
+    });
+
+    if (!risk.allowed) {
+      showRiskBlockToast(risk.reasons, nfaCopy);
+      setExecutingId(null);
+      return;
+    }
+
+    if (risk.adjustedQty !== undefined && risk.adjustedQty > 0) {
+      qty = risk.adjustedQty;
+    }
+
+    const order = buildMarketIocOrder(suggestion.productId, suggestion.side, qty);
+
     if (dryRun) {
       const fill = buildPaperFill({
         suggestion,
-        units: maxTradeSize,
-        price: priceForProduct(suggestion.productId),
+        units: qty,
+        price: unitPrice,
         exchange: selectedExchange,
       });
       recordFill(fill);
+
+      await executeOrderWithLifecycle({
+        order,
+        dryRun: true,
+        exchange: selectedExchange,
+        user,
+        source: suggestion.id,
+        mode: 'paper',
+        paperFillId: fill.id,
+        riskPrices: priceMap,
+        unitPriceUsd: unitPrice,
+      });
+
       toast.success(
         <div className="flex flex-col">
           <span className="font-semibold">🧪 PAPER TRADE recorded</span>
@@ -52,7 +102,7 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
             {fill.side} {fill.units} {fill.symbol} @ ${fill.price.toLocaleString()} · est. fee ${fill.feeUsd.toFixed(2)}
           </span>
           <span className="text-xs text-gray-500 mt-1">
-            Simulated only — no funds moved. See the Paper Ledger on the Portfolio tab.
+            Simulated only — no funds moved. See Order Journal and Paper Ledger on Portfolio.
           </span>
         </div>,
         { duration: 5000, icon: '🧪' },
@@ -67,37 +117,22 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
     );
 
     try {
-      const order: TradeOrder = {
-        product_id: suggestion.productId,
-        side: suggestion.side,
-        order_configuration: {
-          market_market_ioc: { base_size: maxTradeSize.toString() },
-        },
-      };
-
-      let result: OrderResult & { message?: string; exchange?: string };
-
-      if (user) {
-        result = await tradeService.executeTrade(order, dryRun, selectedExchange);
-      } else {
-        const adapter = getAdapter(selectedExchange);
-        if (!adapter || !adapter.config.canTrade || selectedExchange === 'kraken') {
-          toast.error(
-            `${adapter?.config.label ?? selectedExchange} trading requires Supabase login. Please sign in in Settings.`,
-            { id: toastId },
-          );
-          setExecutingId(null);
-          onKrakenAuthRequired();
-          return;
-        }
-        result = await adapter.placeOrder(order, dryRun, {});
-      }
+      const { result } = await executeOrderWithLifecycle({
+        order,
+        dryRun: false,
+        exchange: selectedExchange,
+        user,
+        source: suggestion.id,
+        mode: 'live',
+        riskPrices: priceMap,
+        unitPriceUsd: unitPrice,
+      });
 
       if (result.success) {
         const message = result.message || `Trade executed on ${result.exchange || selectedExchange}`;
         toast.success(
           <div className="flex flex-col">
-            <span className="font-semibold">✅ {dryRun ? 'DRY RUN' : 'Success'}!</span>
+            <span className="font-semibold">✅ Success!</span>
             <span className="text-sm">{message}</span>
             {result.order_id && (
               <span className="text-xs text-gray-500 font-mono mt-1">
@@ -108,7 +143,7 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
           {
             id: toastId,
             duration: 5000,
-            icon: dryRun ? '🔒' : '✅',
+            icon: '✅',
           },
         );
       } else {
@@ -124,16 +159,21 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
         );
       }
     } catch (err) {
-      toast.error(
-        <div className="flex flex-col">
-          <span className="font-semibold">❌ Execution Error</span>
-          <span className="text-sm">{err instanceof Error ? err.message : 'Unknown error'}</span>
-        </div>,
-        {
-          id: toastId,
-          duration: 6000,
-        },
-      );
+      if (err instanceof OrderExecutionError) {
+        toast.error(err.message, { id: toastId, duration: 6000 });
+        onKrakenAuthRequired();
+      } else {
+        toast.error(
+          <div className="flex flex-col">
+            <span className="font-semibold">❌ Execution Error</span>
+            <span className="text-sm">{err instanceof Error ? err.message : 'Unknown error'}</span>
+          </div>,
+          {
+            id: toastId,
+            duration: 6000,
+          },
+        );
+      }
     } finally {
       setExecutingId(null);
     }

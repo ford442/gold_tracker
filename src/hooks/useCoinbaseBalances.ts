@@ -42,8 +42,8 @@ export function useCoinbaseBalances(enabled: boolean): UseCoinbaseBalancesResult
       return;
     }
 
-    fetchAccounts();
-    timerRef.current = setInterval(fetchAccounts, POLL_INTERVAL);
+    void fetchAccounts();
+    timerRef.current = setInterval(() => void fetchAccounts(), POLL_INTERVAL);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };

@@ -1,0 +1,114 @@
+{
+  "exchanges": {
+    "coinbase": {
+      "id": "coinbase",
+      "label": "Coinbase Advanced",
+      "shortLabel": "Coinbase",
+      "icon": "🔵",
+      "status": "live",
+      "auth": "cdp-jwt-es256",
+      "takerFeeBps": 60,
+      "directPaxgXaut": false,
+      "supportedPairs": ["PAXG-USD", "XAUT-USD", "BTC-USD", "ETH-USD", "BCH-USD"],
+      "venuePairIds": {
+        "PAXG-USD": "PAXG-USD",
+        "XAUT-USD": "XAUT-USD",
+        "BTC-USD": "BTC-USD",
+        "ETH-USD": "ETH-USD",
+        "BCH-USD": "BCH-USD"
+      },
+      "canTrade": true,
+      "canSyncBalances": true,
+      "docsUrl": "https://portal.cdp.coinbase.com/",
+      "notes": "CDP API keys (ES256 JWT). Balance sync to portfolio.",
+      "keyFields": [
+        {
+          "key": "cdpKeyName",
+          "label": "CDP Key Name",
+          "placeholder": "organizations/{org_id}/apiKeys/{key_id}",
+          "hint": "Found in your Coinbase Developer Platform dashboard"
+        },
+        {
+          "key": "cdpPrivateKey",
+          "label": "CDP Private Key (PEM)",
+          "placeholder": "-----BEGIN EC PRIVATE KEY-----\n...\n-----END EC PRIVATE KEY-----",
+          "secret": true,
+          "multiline": true,
+          "hint": "Download this when you create your CDP API key. Keep it secure!"
+        }
+      ]
+    },
+    "kraken": {
+      "id": "kraken",
+      "label": "Kraken Pro",
+      "shortLabel": "Kraken",
+      "icon": "🔱",
+      "status": "live",
+      "auth": "hmac-sha512",
+      "takerFeeBps": 26,
+      "directPaxgXaut": true,
+      "supportedPairs": ["PAXG-USD", "XAUT-USD", "BTC-USD", "ETH-USD", "PAXG-XAUT"],
+      "venuePairIds": {
+        "PAXG-USD": "PAXGUSD",
+        "XAUT-USD": "XAUTUSD",
+        "BTC-USD": "XXBTZUSD",
+        "ETH-USD": "XETHZUSD",
+        "PAXG-XAUT": "PAXGXAUT"
+      },
+      "canTrade": true,
+      "canSyncBalances": false,
+      "docsUrl": "https://pro.kraken.com/",
+      "notes": "Direct PAXG↔XAUT pair — one trade instead of two.",
+      "keyFields": [
+        {
+          "key": "krakenApiKey",
+          "label": "Kraken API Key",
+          "placeholder": "YOUR_KRAKEN_API_KEY",
+          "hint": "Get from Kraken Pro → Settings → API"
+        },
+        {
+          "key": "krakenApiSecret",
+          "label": "Kraken API Secret",
+          "placeholder": "YOUR_KRAKEN_API_SECRET",
+          "secret": true,
+          "hint": "Never share this. Stored encrypted."
+        }
+      ]
+    },
+    "gemini": {
+      "id": "gemini",
+      "label": "Gemini ActiveTrader",
+      "shortLabel": "Gemini",
+      "icon": "♊",
+      "status": "planned",
+      "auth": "hmac-sha512",
+      "takerFeeBps": 35,
+      "directPaxgXaut": false,
+      "supportedPairs": ["PAXG-USD", "BTC-USD", "ETH-USD"],
+      "venuePairIds": {
+        "PAXG-USD": "PAXGUSD",
+        "BTC-USD": "BTCUSD",
+        "ETH-USD": "ETHUSD"
+      },
+      "canTrade": false,
+      "canSyncBalances": false,
+      "docsUrl": "https://docs.gemini.com/rest-api/",
+      "notes": "Planned venue — listed to demonstrate the config-driven adapter path.",
+      "keyFields": [
+        {
+          "key": "geminiApiKey",
+          "label": "Gemini API Key",
+          "placeholder": "account-...",
+          "hint": "Coming soon"
+        },
+        {
+          "key": "geminiApiSecret",
+          "label": "Gemini API Secret",
+          "placeholder": "...",
+          "secret": true,
+          "hint": "Coming soon"
+        }
+      ]
+    }
+  }
+}

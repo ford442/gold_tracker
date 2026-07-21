@@ -15,6 +15,7 @@ import { usePriceStore } from '@/store/priceStore';
 import { formatPrice, formatPercent } from '@lib/utils';
 import type { MetalSpot } from '@/types';
 import { CardSkeleton } from './LoadingSkeleton';
+import { usePriceFlash } from '@/hooks/usePriceFlash';
 
 // Metal icon mapping
 const METAL_ICONS: Record<string, string> = {
@@ -36,6 +37,7 @@ interface MetalCardProps {
 }
 
 function MetalCard({ metal }: MetalCardProps) {
+  const flash = usePriceFlash(metal.price);
   const isPositive24h = metal.change24h >= 0;
   const isPositive7d  = metal.change7d >= 0;
   const sparkData = metal.sparkline.slice(-24).map((p) => ({ price: p.price }));
@@ -105,7 +107,7 @@ function MetalCard({ metal }: MetalCardProps) {
       </div>
 
       {/* Price */}
-      <div style={{
+      <div className={flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : undefined} style={{
         fontSize: 'var(--font-2xl)',
         fontWeight: 800,
         color,

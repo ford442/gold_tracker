@@ -68,7 +68,7 @@ Deployment (when relevant): `npm run build && python deploy.py` (SFTP to test.1i
 
 - **AGENTS.md**: Full technical spec — project structure, every component/hook/store/lib responsibility, CSS variable glossary, state patterns, security model, exact deployment steps. Read it when you need precision. (New: RegimeLens.tsx responsibility for fidelity UI + NFA framing; regime.ts for all pure math.)
 - **README.md**: User-facing quick start and feature list.
-- **code_plan.md**: Historical architectural gap analysis (what would be needed to make this a full OMS-grade system). Useful context, not a current to-do list.
+- **code_plan.md**: Maintained OMS gap checklist (Done vs Remaining on `main`); see also [docs/ROADMAP.md](docs/ROADMAP.md) for a one-page summary.
 - **supabase/**: Edge Functions, schema, and DEPLOY.md for the optional secure backend.
 
 This project sits at the intersection of delightful personal tooling and real (simulated) financial operations. When in doubt, make the numbers trustworthy and the interface feel expensive.

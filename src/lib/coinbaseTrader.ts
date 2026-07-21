@@ -1,18 +1,105 @@
 import { useSettingsStore } from '@/store/settingsStore';
+import type { TradeOrder, OrderResult, OrderStatusResult, CancelOrderResult } from './orderTypes';
+import {
+  parseCoinbaseApiErrorBody,
+  parseCoinbaseOrderStatusResponse,
+  parseCoinbasePlaceOrderResponse,
+  resolveCoinbaseOrder,
+} from './coinbaseApiTypes';
 
-export interface TradeOrder {
-  product_id: string;           // e.g. "PAXG-USD"
-  side: 'BUY' | 'SELL';
-  order_configuration: {
-    market_market_ioc?: { base_size: string };
-    limit_limit_gtc?: { base_size: string; limit_price: string };
-  };
+export type { TradeOrder, OrderResult } from './orderTypes';
+
+function mapCoinbaseStatus(status: string): OrderStatusResult['status'] {
+  const s = status.toUpperCase();
+  if (s === 'FILLED' || s === 'DONE') return 'filled';
+  if (s === 'CANCELLED' || s === 'CANCELED') return 'cancelled';
+  if (s === 'OPEN' || s === 'PENDING' || s === 'QUEUED') return 'open';
+  if (s.includes('PARTIAL')) return 'partially_filled';
+  return 'unknown';
 }
 
-export interface OrderResult {
-  success: boolean;
-  order_id?: string;
-  error?: string;
+export async function getCoinbaseOrderStatus(
+  orderId: string,
+  _productId: string,
+  creds: { cdpKeyName?: string; cdpPrivateKey?: string },
+): Promise<OrderStatusResult> {
+  if (orderId.startsWith('dry-run-') || orderId.startsWith('paper-')) {
+    return { status: 'filled', venueOrderId: orderId, filledQty: 0 };
+  }
+
+  const cdpKeyName = creds.cdpKeyName ?? useSettingsStore.getState().cdpKeyName;
+  const cdpPrivateKey = creds.cdpPrivateKey ?? useSettingsStore.getState().cdpPrivateKey;
+  if (!cdpKeyName || !cdpPrivateKey) {
+    return { status: 'unknown', error: 'Coinbase CDP keys not configured' };
+  }
+
+  try {
+    const path = `/api/v3/brokerage/orders/historical/${orderId}`;
+    const jwt = await createJWT(cdpKeyName, cdpPrivateKey, 'GET', path);
+    const res = await fetch(BASE_URL + path, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    const data = parseCoinbaseOrderStatusResponse(await res.json());
+    if (!res.ok) {
+      return { status: 'unknown', error: data.message || 'Status fetch failed' };
+    }
+
+    const order = resolveCoinbaseOrder(data);
+    const filled = parseFloat(order.filled_size ?? order.filled_value ?? '0') || 0;
+    const requested = parseFloat(order.order_configuration?.market_market_ioc?.base_size ?? '0') || filled;
+
+    return {
+      status: mapCoinbaseStatus(order.status ?? 'UNKNOWN'),
+      venueOrderId: orderId,
+      filledQty: filled,
+      requestedQty: requested,
+      avgFillPrice: parseFloat(order.average_filled_price ?? '0') || undefined,
+    };
+  } catch (err) {
+    return {
+      status: 'unknown',
+      error: err instanceof Error ? err.message : 'Status fetch failed',
+    };
+  }
+}
+
+export async function cancelCoinbaseOrder(
+  orderId: string,
+  _productId: string,
+  creds: { cdpKeyName?: string; cdpPrivateKey?: string },
+): Promise<CancelOrderResult> {
+  if (orderId.startsWith('dry-run-') || orderId.startsWith('paper-')) {
+    return { success: true };
+  }
+
+  const cdpKeyName = creds.cdpKeyName ?? useSettingsStore.getState().cdpKeyName;
+  const cdpPrivateKey = creds.cdpPrivateKey ?? useSettingsStore.getState().cdpPrivateKey;
+  if (!cdpKeyName || !cdpPrivateKey) {
+    return { success: false, error: 'Coinbase CDP keys not configured' };
+  }
+
+  try {
+    const path = '/api/v3/brokerage/orders/batch_cancel';
+    const jwt = await createJWT(cdpKeyName, cdpPrivateKey, 'POST', path);
+    const res = await fetch(BASE_URL + path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ order_ids: [orderId] }),
+    });
+    const data = parseCoinbaseApiErrorBody(await res.json());
+    if (!res.ok) {
+      return { success: false, error: data.message || data.error || 'Cancel failed' };
+    }
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Cancel failed',
+    };
+  }
 }
 
 const BASE_URL = 'https://api.coinbase.com';
@@ -25,7 +112,7 @@ async function createJWT(keyName: string, privateKeyPem: string, method: string,
     sub: keyName,
     iss: 'cdp',
     nbf: now,
-    exp: now + 120,           // 2 minutes max
+    exp: now + 120,
     uri: uri,
   };
 
@@ -38,7 +125,6 @@ async function createJWT(keyName: string, privateKeyPem: string, method: string,
       .join(''),
   };
 
-  // Convert PEM → CryptoKey (browser Web Crypto)
   const pemHeader = '-----BEGIN EC PRIVATE KEY-----';
   const pemFooter = '-----END EC PRIVATE KEY-----';
   const pemContents = privateKeyPem
@@ -100,7 +186,7 @@ export async function placeOrder(order: TradeOrder, dryRun = true): Promise<Orde
     body: JSON.stringify(order),
   });
 
-  const data = await response.json();
+  const data = parseCoinbasePlaceOrderResponse(await response.json());
 
   if (!response.ok) {
     return { success: false, error: data.message || 'Unknown error' };
@@ -109,8 +195,12 @@ export async function placeOrder(order: TradeOrder, dryRun = true): Promise<Orde
   return { success: true, order_id: data.order_id };
 }
 
-export async function testConnection(): Promise<boolean> {
-  const { cdpKeyName, cdpPrivateKey } = useSettingsStore.getState();
+export async function testCoinbaseConnection(creds: {
+  cdpKeyName?: string;
+  cdpPrivateKey?: string;
+}): Promise<boolean> {
+  const cdpKeyName = creds.cdpKeyName;
+  const cdpPrivateKey = creds.cdpPrivateKey;
 
   if (!cdpKeyName || !cdpPrivateKey) return false;
 
@@ -126,4 +216,10 @@ export async function testConnection(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** @deprecated Use adapter.testConnection or testCoinbaseConnection with explicit creds */
+export async function testConnection(): Promise<boolean> {
+  const { cdpKeyName, cdpPrivateKey } = useSettingsStore.getState();
+  return testCoinbaseConnection({ cdpKeyName, cdpPrivateKey });
 }

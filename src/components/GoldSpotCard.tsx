@@ -1,12 +1,14 @@
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import type { GoldSpot } from '@/types';
 import { formatPrice, formatPercent } from '@lib/utils';
+import { usePriceFlash } from '@/hooks/usePriceFlash';
 
 interface Props {
   data: GoldSpot;
 }
 
 export function GoldSpotCard({ data }: Props) {
+  const flash = usePriceFlash(data.price);
   const isPositive = data.change24h >= 0;
   const sparkData = data.sparkline.slice(-24).map((p) => ({ price: p.price }));
 
@@ -90,7 +92,7 @@ export function GoldSpotCard({ data }: Props) {
       </div>
 
       <div 
-        className="mono-num"
+        className={`mono-num${flash === 'up' ? ' flash-up' : flash === 'down' ? ' flash-down' : ''}`}
         style={{ 
           fontSize: 'var(--font-2xl)', 
           fontWeight: 800, 

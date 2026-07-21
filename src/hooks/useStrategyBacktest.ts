@@ -1,17 +1,14 @@
 import { useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import {
-  runBacktest,
-  createArbitrageStrategy,
-  createMeanReversionStrategy,
-  createHoldStrategy,
-  createGoldExposureRebalancer,
   applyShocksToTicks,
   generateBaseScenarioTicks,
   EXCHANGE_COST_PRESETS,
   type BacktestTick,
   type RebalanceConfig,
 } from '@lib/strategyEngine';
+import { runBacktestAsync } from '@lib/workerClient';
+import type { StrategyPayload } from '@lib/analyticsWorkerProtocol';
 import { generateMockTicks } from '@lib/strategyMockTicks';
 import { formatPercent, formatPrice } from '@lib/utils';
 import { useStrategyStore } from '@/store/strategyStore';
@@ -109,26 +106,37 @@ export function useStrategyBacktest() {
         if (strategyType === 'arbitrage' && arbRegimeGateEnabled && liveRegime) {
           ticks = withRegimeOnTicks(ticks, liveRegime);
         }
-        const strategy = strategyType === 'arbitrage'
-          ? createArbitrageStrategy({
-              asset1: arbAsset1,
-              asset2: arbAsset2,
-              spreadThreshold: arbSpreadThreshold,
-              tradeSize: arbTradeSize,
-              regimeGate: arbRegimeGateEnabled
-                ? { enabled: true, config: regimeGateConfig }
-                : undefined,
-            })
-          : createMeanReversionStrategy({
-              asset: mrAsset,
-              windowSize: mrWindowSize,
-              buyThreshold: mrBuyThreshold,
-              sellThreshold: mrSellThreshold,
-              tradeSize: mrTradeSize,
-              stopLoss: mrStopLoss,
-            });
+        const strategyPayload: StrategyPayload = strategyType === 'arbitrage'
+          ? {
+              kind: 'arbitrage',
+              config: {
+                asset1: arbAsset1,
+                asset2: arbAsset2,
+                spreadThreshold: arbSpreadThreshold,
+                tradeSize: arbTradeSize,
+                regimeGate: arbRegimeGateEnabled
+                  ? { enabled: true, config: regimeGateConfig }
+                  : undefined,
+              },
+            }
+          : {
+              kind: 'meanReversion',
+              config: {
+                asset: mrAsset,
+                windowSize: mrWindowSize,
+                buyThreshold: mrBuyThreshold,
+                sellThreshold: mrSellThreshold,
+                tradeSize: mrTradeSize,
+                stopLoss: mrStopLoss,
+              },
+            };
 
-        const result = runBacktest(ticks, strategy, initialBalance, undefined, activeCostModel);
+        const result = await runBacktestAsync({
+          ticks,
+          strategy: strategyPayload,
+          initialBalance,
+          costModel: activeCostModel,
+        });
         setLastResult(result);
         const feeNote = result.totalFeesUsd > 0 ? `, fees ${formatPrice(result.totalFeesUsd)}` : '';
         toast.success(`Backtest complete — ${result.totalTrades} trades, ${formatPercent(result.totalReturn)} net return${feeNote}`, { duration: 4000 });
@@ -172,14 +180,29 @@ export function useStrategyBacktest() {
           targetGoldPct: 0.55,
           rebalanceBandPct: 0.05,
         };
-        const strategy = createGoldExposureRebalancer(rebalCfg);
+        const rebalPayload: StrategyPayload = {
+          kind: 'goldExposureRebalancer',
+          config: rebalCfg,
+        };
 
         if (dcaUsdPerPeriod > 0 && dcaPeriodCount > 0) {
           // DCA approximated via extra cash + rebal target for demo
         }
 
-        const primary = runBacktest(shockedTicks, strategy, Math.max(0, startCash), initPos, activeCostModel);
-        const hold = runBacktest(shockedTicks, createHoldStrategy(), Math.max(0, startCash), initPos, activeCostModel);
+        const primary = await runBacktestAsync({
+          ticks: shockedTicks,
+          strategy: rebalPayload,
+          initialBalance: Math.max(0, startCash),
+          initialPositions: initPos,
+          costModel: activeCostModel,
+        });
+        const hold = await runBacktestAsync({
+          ticks: shockedTicks,
+          strategy: { kind: 'hold' },
+          initialBalance: Math.max(0, startCash),
+          initialPositions: initPos,
+          costModel: activeCostModel,
+        });
 
         setLastScenarioResult(primary);
         setLastResult(primary);

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNews } from '@/hooks/useNews';
 import { formatTimeAgo } from '@lib/utils';
+import type { NewsItem } from '@/types';
 
 const COLLAPSED_KEY = 'goldtrackr-news-collapsed';
 
@@ -48,18 +49,10 @@ function categorizeNews(title: string): string | null {
   return null;
 }
 
-interface NewsItem {
-  id: string;
-  title: string;
-  snippet?: string;
-  source: string;
-  publishedAt: string;
-  url: string;
-  category?: string | null;
-}
+type CategorizedNewsItem = NewsItem & { category: string | null };
 
 export function NewsFeed() {
-  const { news, loading, refetch } = useNews();
+  const { news, loading, refetch, lastFetched, sources, isMock, cached } = useNews();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === 'true');
   const [readItems, setReadItems] = useState<Set<string>>(() => {
     const stored = localStorage.getItem('goldtrackr-news-read');
@@ -143,23 +136,47 @@ export function NewsFeed() {
           )}
         </button>
         {!collapsed && (
-          <button
-            onClick={refetch}
-            disabled={loading}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
-              background: 'transparent',
-              color: 'var(--color-muted)',
-              cursor: loading ? 'default' : 'pointer',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
               fontSize: 'var(--font-xs)',
-              opacity: loading ? 0.5 : 1,
-              fontWeight: 500
-            }}
-          >
-            {loading ? '⏳ Loading...' : '🔄 Refresh'}
-          </button>
+              color: 'var(--color-muted)',
+              textAlign: 'right',
+              lineHeight: 1.4,
+            }}>
+              {lastFetched && (
+                <div>
+                  Last fetched {formatTimeAgo(lastFetched)}
+                  {cached && <span style={{ opacity: 0.75 }}> (cached)</span>}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                {isMock ? (
+                  <span className="badge-gold" style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
+                    Demo data
+                  </span>
+                ) : (
+                  <span>{sources.join(' · ')}</span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={refetch}
+              disabled={loading}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border)',
+                background: 'transparent',
+                color: 'var(--color-muted)',
+                cursor: loading ? 'default' : 'pointer',
+                fontSize: 'var(--font-xs)',
+                opacity: loading ? 0.5 : 1,
+                fontWeight: 500
+              }}
+            >
+              {loading ? '⏳ Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -186,7 +203,7 @@ export function NewsFeed() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {categorizedNews.map((item: NewsItem) => {
+              {categorizedNews.map((item: CategorizedNewsItem) => {
                 const read = isRead(item.id);
                 const category = item.category ? CATEGORIES[item.category] : null;
                 

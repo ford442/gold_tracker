@@ -13,14 +13,14 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 - Arbitrage alerts for PAXG/XAUT spread opportunities
 - Portfolio tracker with unrealized P&L, gold exposure %, crypto beta %, and Coinbase balance sync
 - Trade suggestions based on market conditions
-- Gold news feed (mock data — RSS fetching disabled due to CORS reliability issues)
+- Gold news feed (mock data — RSS fetching disabled due to CORS reliability issues; live proxy tracked in [#52](https://github.com/ford442/gold_tracker/issues/52))
 - Dark/Light mode with localStorage persistence
 - **Coinbase trading integration** with CDP API keys
 - **Kraken trading integration** with direct PAXG/XAUT pair support
 - **Strategy backtesting engine** with arbitrage and mean-reversion simulations
 - **Trade replay chart** with buy/sell markers and forecast projections
 - **Performance comparison chart** (14-day normalized returns)
-- **Global arbitrage monitor** with synthetic market signals
+- **Global arbitrage monitor** with live cross-venue PAXG/XAUT quotes (Coinbase, Kraken, Gemini quote-only) and net-of-fees spreads
 - **Supabase backend** for secure key storage and multi-exchange trading (optional)
 
 ## Technology Stack
@@ -61,7 +61,7 @@ src/lib/  (pure, unit-tested)  →  src/hooks/  (React)  →  src/store/  (Zusta
 - **`src/store/`** — Zustand stores hold canonical state; components read from here, never fetch directly.
 - **`src/components/`** — presentational; one lazy section mounts at a time.
 
-Roadmap and larger design direction live in the repo's [open issues](https://github.com/ford442/gold_tracker/issues) and [code_plan.md](code_plan.md) (OMS vision with a done-vs-remaining checklist).
+Roadmap and larger design direction live in [docs/ROADMAP.md](docs/ROADMAP.md), [code_plan.md](code_plan.md) (OMS vision with a done-vs-remaining checklist), and the repo's [open issues](https://github.com/ford442/gold_tracker/issues).
 
 ## Project Structure
 
@@ -78,7 +78,7 @@ goldtracker/
 │   │   ├── PreciousMetalsPanel.tsx # Spot silver/platinum/palladium (+ gold) cards & charts
 │   │   ├── CorrelationMatrix.tsx   # Short-term tactical price correlation visualization
 │   │   ├── ArbitrageAlerts.tsx     # Arbitrage opportunity alerts
-│   │   ├── GlobalArbitrageMonitor.tsx # Global arb monitor with synthetic signals
+│   │   ├── GlobalArbitrageMonitor.tsx # Cross-venue PAXG/XAUT quotes (venueQuoteFanout) + net-of-fees arb table
 │   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync (uses portfolio/ folder)
 │   │   ├── PaperLedgerPanel.tsx    # Paper-trade ledger: summary, realized-P&L curve, fills, CSV export, reset
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
@@ -187,6 +187,9 @@ npm run build
 # Run ESLint
 npm run lint
 
+# Full type-safety lint (aspirational CI gate; not yet required in CI)
+npm run lint:strict
+
 # Preview production build
 npm run preview
 ```
@@ -232,6 +235,19 @@ Production builds use a **section shell** plus **lazy panels** so first paint st
 - Import type-only imports with `import type { ... }`
 - File extensions: `.tsx` for components, `.ts` for utilities
 - Props interfaces use `interface Props { ... }` naming
+
+### Linting / type-safety
+
+ESLint uses `typescript-eslint` `recommendedTypeChecked`. Nine stricter rules are rolled out gradually by package area (`lib/` → `hooks/` → `store/` → `components/`).
+
+| Command | Scope |
+|---------|--------|
+| `npm run lint` | Default CI lint. `src/lib/**`, `src/hooks/**`, `src/store/**`, and `src/components/**` enforce `no-floating-promises` and `no-unsafe-assignment`. |
+| `npm run lint:strict` | All nine gradual rules enabled repo-wide (`ESLINT_STRICT=1`). Aspirational future CI gate once clean — not wired into CI yet (~52 violations as of phase 4). |
+
+**Import paths:** use `@/` for cross-directory imports (e.g. `@/types`, `@/lib/api`). Same-folder `./` imports in `lib/` remain fine.
+
+**eslint-disable policy:** do not add new `eslint-disable` blocks without an inline comment explaining why **and** a GitHub issue link. Existing `react-hooks/*` disables are grandfathered.
 
 ### CSS Variables (Theme System)
 
@@ -337,8 +353,8 @@ export const useStore = create<StoreState>()(
 
 ### Data Refresh Intervals
 
-- **Prices**: 60 seconds (`POLL_INTERVAL` in `useGoldPrices.ts`)
-- **News**: 5 minutes (mock data only)
+- **Prices**: 60 seconds (`POLL_INTERVAL` in `useGoldPrices.ts`); WebSocket transport tracked in [#48](https://github.com/ford442/gold_tracker/issues/48)
+- **News**: 5 minutes (mock data only; live RSS proxy tracked in [#52](https://github.com/ford442/gold_tracker/issues/52))
 - **Arbitrage alerts**: Debounced to once per 5 minutes per pair
 - **Coinbase balances**: 60 seconds when sync enabled (`useCoinbaseBalances.ts`)
 
@@ -564,7 +580,7 @@ npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
 
 Coverage scope: `utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets` (API client files excluded — see `vite.config.ts`).
 
-CI (`.github/workflows/ci.yml`) runs lint, test, coverage, and build on every push and pull request to `main`. Merges are blocked when lint reports errors, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`.
+CI (`.github/workflows/ci.yml`) runs `npm run lint`, test, coverage, and build on every push and pull request to `main`. Merges are blocked when lint reports errors, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`. `npm run lint:strict` exists for the full type-safety gate but is not yet required in CI.
 
 On `main`, the same workflow uploads a `goldtrackr-dist` artifact and deploys via rsync over SSH (deploy key in `SSH_PRIVATE_KEY`; host/user/path in `SSH_HOST`, `SSH_USER`, `SSH_PATH`). Production builds use `base: './'` in `vite.config.ts` for subdirectory hosting — no post-build path rewrites.
 
@@ -578,6 +594,7 @@ Component-level tests are still out of scope; for other UI checks:
 
 ## Notes for Agents
 
+- **Shipped vs open (check `main`).** GitHub issue state ≠ ship status. Several issues ([#28](https://github.com/ford442/gold_tracker/issues/28), [#38](https://github.com/ford442/gold_tracker/issues/38), [#46](https://github.com/ford442/gold_tracker/issues/46)–[#50](https://github.com/ford442/gold_tracker/issues/50)) were closed before full acceptance criteria merged. Use [docs/ROADMAP.md](docs/ROADMAP.md) and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) Done/Remaining lists — verify with `git ls-tree origin/main -- <path>` before assuming a module exists.
 - Always maintain the existing dark-first theming approach
 - When adding new stores, use the persist middleware for data that should survive page reloads
 - Mock data is provided for all API calls to ensure the app works without API keys
@@ -587,10 +604,10 @@ Component-level tests are still out of scope; for other UI checks:
 - When working with Supabase Edge Functions, use the `jose` library for JWT signing (already configured)
 - Always handle both local and server-secure modes in trading-related components
 - Always handle both Coinbase and Kraken exchanges where applicable
-- **Exchange registry.** `lib/exchanges.ts` (pure, unit-tested, in the coverage gate) is the single source of truth for venue metadata — taker fees, supported pairs, auth method, the direct-PAXG/XAUT flag, and capability flags. To add a venue, add an entry there; the Settings selector, fee table, and fee math all read from it. Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through the `ExchangeAdapter` interface in `lib/exchangeAdapters.ts` (balances/placeOrder/fees/pairs), which wraps the existing Coinbase/Kraken clients — depend on the adapter, not on venue-specific functions. `settingsStore.Exchange` is typed from the registry's `LiveTradingExchangeId`.
+- **Exchange registry.** `lib/exchanges.ts` (pure, unit-tested, in the coverage gate) is the single source of truth for venue metadata — taker fees, supported pairs, auth method, the direct-PAXG/XAUT flag, and capability flags. To add a venue, add an entry there; the Settings selector, fee table, and fee math all read from it. Shared client+Edge registry tracked in [#45](https://github.com/ford442/gold_tracker/issues/45). Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through the `ExchangeAdapter` interface in `lib/exchangeAdapters.ts` (balances/placeOrder/fees/pairs), which wraps the existing Coinbase/Kraken clients — depend on the adapter, not on venue-specific functions. `settingsStore.Exchange` is typed from the registry's `LiveTradingExchangeId`.
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
-- RSS news fetching is disabled; `fetchGoldNews()` returns mock data
+- RSS news fetching is disabled; `fetchGoldNews()` returns mock data ([#52](https://github.com/ford442/gold_tracker/issues/52) tracks server-side proxy)
 - **Paper trading = dry-run.** When `dryRun` is on, `useTradeExecution` records a simulated fill (pure `buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` and never calls an exchange API — so practice needs no keys and can never place a live order. Every fill is stamped `mode: 'paper'`; the store only appends or resets. Keep the LIVE (🚀) vs PAPER (🧪) distinction explicit in any trading UI. Realized/unrealized P&L, the equity curve, and CSV export all come from pure `lib/paperTrade.ts` — extend there first (it is unit-tested and in the coverage gate).
 - All chart components use Recharts with `isAnimationActive={false}` for performance
 - **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal, apiKey })`. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
@@ -604,5 +621,5 @@ Component-level tests are still out of scope; for other UI checks:
 - Single Vite + React frontend; no backend service needs to run locally. Standard commands live in `package.json` / README (`npm run dev`, `npm run build`, `npm run lint`, `npm run preview`). Dependencies are refreshed by the startup update script (`npm ci`).
 - No secrets/API keys are required: the app falls back to realistic mock data when `VITE_*` keys are absent (see `src/lib/api.ts`), so the dashboard, portfolio, correlations, and backtests are all fully usable for dev/testing without any `.env.local`.
 - `npm run dev` serves on `http://localhost:5173/`. Vite is not bound with `--host` by default, so it only listens on localhost — pass `npm run dev -- --host` if you need to reach it from outside the VM.
-- Validate changes via `npm run lint`, `npm test`, `npm run build`, and manual browser testing of the dev server. CI also runs `npm run test:coverage` with thresholds on pure `src/lib` modules.
+- Validate changes via `npm run lint`, `npm test`, `npm run build`, and manual browser testing of the dev server. CI also runs `npm run test:coverage` with thresholds on pure `src/lib` modules. Use `npm run lint:strict` locally when touching code outside `src/lib/` to gauge remaining type-safety debt.
 - `npm run lint` currently emits one pre-existing `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx` (0 errors) — that warning is expected, not something you introduced.

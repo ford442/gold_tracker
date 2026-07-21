@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Kitco Gold News</title>
+    <link>https://www.kitco.com/news/category/commodities/gold</link>
+    <description>Latest gold news from Kitco</description>
+    <item>
+      <title><![CDATA[Gold rallies as Fed signals rate cut pause]]></title>
+      <link>https://www.kitco.com/news/article/gold-rallies-fed</link>
+      <guid isPermaLink="true">https://www.kitco.com/news/article/gold-rallies-fed</guid>
+      <pubDate>Mon, 21 Jul 2025 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Gold prices surged past <strong>$3,290/oz</strong> as the Federal Reserve signaled caution.</p>]]></description>
+    </item>
+    <item>
+      <title>China increases gold reserves for third month</title>
+      <link>https://www.kitco.com/news/article/china-gold-reserves</link>
+      <pubDate>Sun, 20 Jul 2025 14:30:00 GMT</pubDate>
+      <description>China's central bank added to its gold reserves again amid trade tensions.</description>
+    </item>
+    <item>
+      <title>PAXG vs XAUT spread widens on exchanges</title>
+      <link>https://www.kitco.com/news/article/paxg-xaut-spread</link>
+      <dc:date>2025-07-19T08:15:00Z</dc:date>
+      <description>Traders spotted a growing spread between tokenized gold products.</description>
+    </item>
+  </channel>
+</rss>

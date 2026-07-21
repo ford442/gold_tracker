@@ -2,6 +2,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as jose from 'https://esm.sh/jose@4.15.5'
+import {
+  getExchangeConfig,
+  isLiveTradingExchange,
+  liveTradingExchangeLabels,
+  resolveVenuePair,
+  supportsPair,
+} from '../_shared/registry.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,23 +17,6 @@ const corsHeaders = {
 
 const COINBASE_BASE_URL = 'https://api.coinbase.com'
 const KRAKEN_BASE_URL = 'https://api.kraken.com'
-
-// Supported trading pairs mapping
-const PAIR_MAP: Record<string, Record<string, string>> = {
-  coinbase: {
-    'PAXG-USD': 'PAXG-USD',
-    'XAUT-USD': 'XAUT-USD',
-    'BTC-USD': 'BTC-USD',
-    'ETH-USD': 'ETH-USD',
-  },
-  kraken: {
-    'PAXG-USD': 'PAXGUSD',
-    'XAUT-USD': 'XAUTUSD',
-    'BTC-USD': 'XXBTZUSD',
-    'ETH-USD': 'XETHZUSD',
-    'PAXG-XAUT': 'PAXGXAUT', // Direct pair on Kraken!
-  },
-}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -51,12 +41,15 @@ serve(async (req: Request) => {
   }
 
   const body = await req.json()
-  const { order, dryRun = true, testOnly = false, exchange = 'coinbase' } = body
+  const { order, dryRun = true, testOnly = false, exchange = 'coinbase', action, orderId, productId } = body
 
   // Validate exchange
-  if (!['coinbase', 'kraken'].includes(exchange)) {
+  if (!isLiveTradingExchange(exchange)) {
     return new Response(
-      JSON.stringify({ success: false, error: 'Invalid exchange. Use "coinbase" or "kraken"' }),
+      JSON.stringify({
+        success: false,
+        error: `Invalid exchange. Use ${liveTradingExchangeLabels()}`,
+      }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -101,6 +94,24 @@ serve(async (req: Request) => {
 
   const decrypted = JSON.parse(new TextDecoder().decode(decryptedBuffer))
 
+  if (action === 'status' && orderId) {
+    const status = exchange === 'kraken'
+      ? await getKrakenOrderStatus(orderId, decrypted.krakenApiKey, decrypted.krakenApiSecret)
+      : await getCoinbaseOrderStatus(orderId, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
+    return new Response(JSON.stringify(status), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  if (action === 'cancel' && orderId) {
+    const cancel = exchange === 'kraken'
+      ? await cancelKrakenOrder(orderId, decrypted.krakenApiKey, decrypted.krakenApiSecret)
+      : await cancelCoinbaseOrder(orderId, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
+    return new Response(JSON.stringify(cancel), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   // TEST CONNECTION
   if (testOnly) {
     const success = exchange === 'kraken'
@@ -112,6 +123,18 @@ serve(async (req: Request) => {
   }
 
   // EXECUTE TRADE
+  const orderProductId = order?.product_id as string | undefined
+  if (orderProductId && !supportsPair(exchange, orderProductId)) {
+    const cfg = getExchangeConfig(exchange)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Unsupported product "${orderProductId}" on ${cfg?.label ?? exchange}. Supported: ${cfg?.supportedPairs.join(', ') ?? 'none'}`,
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   let result
   if (dryRun) {
     result = {
@@ -121,7 +144,7 @@ serve(async (req: Request) => {
       exchange,
       order: {
         ...order,
-        pair: PAIR_MAP[exchange][order.product_id] || order.product_id,
+        pair: orderProductId ? resolveVenuePair(exchange, orderProductId) : order?.product_id,
       }
     }
   } else {
@@ -246,20 +269,15 @@ async function placeKrakenOrder(
     const nonce = Date.now().toString()
     const path = '/0/private/AddOrder'
     
-    // Map product_id to Kraken pair format
-    const krakenPair = PAIR_MAP.kraken[order.product_id as string] || order.product_id
+    // Map product_id to Kraken pair format (shared registry)
+    const krakenPair = resolveVenuePair('kraken', order.product_id as string)
     
     const postData: Record<string, string> = {
       nonce,
       ordertype: 'market',
       type: (order.side as string).toLowerCase(),
       volume: (order.order_configuration as Record<string, { base_size: string }>)?.market_market_ioc?.base_size || '0.1',
-      pair: krakenPair as string,
-    }
-
-    // Kraken supports direct PAXG/XAUT pair!
-    if (order.product_id === 'PAXG-XAUT') {
-      postData.pair = 'PAXGXAUT'
+      pair: krakenPair,
     }
 
     const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
@@ -287,5 +305,128 @@ async function placeKrakenOrder(
     }
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+function mapCoinbaseStatus(status: string): string {
+  const s = (status ?? '').toUpperCase()
+  if (s === 'FILLED' || s === 'DONE') return 'filled'
+  if (s === 'CANCELLED' || s === 'CANCELED') return 'cancelled'
+  if (s === 'OPEN' || s === 'PENDING' || s === 'QUEUED') return 'open'
+  if (s.includes('PARTIAL')) return 'partially_filled'
+  return 'unknown'
+}
+
+async function getCoinbaseOrderStatus(orderId: string, keyName: string, privateKeyPem: string) {
+  if (orderId.startsWith('dry-run-')) {
+    return { status: 'filled', venueOrderId: orderId }
+  }
+  try {
+    const path = `/api/v3/brokerage/orders/historical/${orderId}`
+    const jwt = await createCoinbaseJWT(keyName, privateKeyPem, 'GET', path)
+    const res = await fetch(`${COINBASE_BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      return { status: 'unknown', error: data.message || 'Status fetch failed' }
+    }
+    const order = data.order ?? data
+    const filled = parseFloat(order.filled_size ?? '0') || 0
+    return {
+      status: mapCoinbaseStatus(order.status),
+      venueOrderId: orderId,
+      filledQty: filled,
+      avgFillPrice: parseFloat(order.average_filled_price ?? '0') || undefined,
+    }
+  } catch (err: unknown) {
+    return { status: 'unknown', error: err instanceof Error ? err.message : 'Status fetch failed' }
+  }
+}
+
+async function cancelCoinbaseOrder(orderId: string, keyName: string, privateKeyPem: string) {
+  if (orderId.startsWith('dry-run-')) return { success: true }
+  try {
+    const path = '/api/v3/brokerage/orders/batch_cancel'
+    const jwt = await createCoinbaseJWT(keyName, privateKeyPem, 'POST', path)
+    const res = await fetch(`${COINBASE_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ order_ids: [orderId] }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      return { success: false, error: data.message || data.error || 'Cancel failed' }
+    }
+    return { success: true }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Cancel failed' }
+  }
+}
+
+async function getKrakenOrderStatus(orderId: string, apiKey: string, apiSecret: string) {
+  if (orderId.startsWith('dry-run-')) {
+    return { status: 'filled', venueOrderId: orderId }
+  }
+  try {
+    const nonce = Date.now().toString()
+    const path = '/0/private/QueryOrders'
+    const postData = { nonce, txid: orderId }
+    const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'API-Key': apiKey,
+        'API-Sign': createKrakenSignature(apiSecret, path, nonce, postData),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ nonce, txid: orderId }),
+    })
+    const data = await response.json()
+    if (data.error?.length) {
+      return { status: 'unknown', error: data.error.join(', ') }
+    }
+    const order = data.result?.[orderId]
+    if (!order) return { status: 'unknown', error: 'Order not found' }
+    const status = order.status === 'closed'
+      ? (parseFloat(order.vol_exec ?? '0') > 0 ? 'filled' : 'cancelled')
+      : order.status === 'open'
+        ? 'open'
+        : 'unknown'
+    return {
+      status,
+      venueOrderId: orderId,
+      filledQty: parseFloat(order.vol_exec ?? '0') || 0,
+      avgFillPrice: parseFloat(order.price ?? '0') || undefined,
+    }
+  } catch (err: unknown) {
+    return { status: 'unknown', error: err instanceof Error ? err.message : 'Status fetch failed' }
+  }
+}
+
+async function cancelKrakenOrder(orderId: string, apiKey: string, apiSecret: string) {
+  if (orderId.startsWith('dry-run-')) return { success: true }
+  try {
+    const nonce = Date.now().toString()
+    const path = '/0/private/CancelOrder'
+    const postData = { nonce, txid: orderId }
+    const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'API-Key': apiKey,
+        'API-Sign': createKrakenSignature(apiSecret, path, nonce, postData),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ nonce, txid: orderId }),
+    })
+    const data = await response.json()
+    if (data.error?.length) {
+      return { success: false, error: data.error.join(', ') }
+    }
+    return { success: true }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'Cancel failed' }
   }
 }

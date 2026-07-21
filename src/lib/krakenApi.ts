@@ -3,7 +3,12 @@
  * Note: Actual trading happens server-side in Edge Functions for security
  */
 
-import { roundTripPaxgXautFeeBps } from './exchanges';
+import {
+  getExchangeConfig,
+  getVenuePairMap,
+  reverseVenuePairMap,
+  roundTripPaxgXautFeeBps,
+} from './exchanges';
 
 export interface KrakenOrder {
   pair: string;           // e.g., "PAXGUSD", "XAUTUSD", "PAXGXAUT"
@@ -40,26 +45,18 @@ export function createKrakenSignature(
   return btoa(String.fromCharCode(...new Uint8Array(data.slice(0, 64))));
 }
 
-// Trading pair mapping for Kraken
-export const KRAKEN_PAIRS: Record<string, string> = {
-  'PAXG-USD': 'PAXGUSD',
-  'XAUT-USD': 'XAUTUSD',
-  'BTC-USD': 'XXBTZUSD',
-  'ETH-USD': 'XETHZUSD',
-  'PAXG-XAUT': 'PAXGXAUT', // Direct pair! Lower fees for arb
-};
+// Trading pair mapping for Kraken — sourced from shared/exchanges.json
+export const KRAKEN_PAIRS: Record<string, string> = getVenuePairMap('kraken');
 
 // Inverse mapping
-export const KRAKEN_PAIRS_REVERSE: Record<string, string> = Object.fromEntries(
-  Object.entries(KRAKEN_PAIRS).map(([k, v]) => [v, k])
-);
+export const KRAKEN_PAIRS_REVERSE: Record<string, string> = reverseVenuePairMap('kraken');
 
 /**
  * Check if a direct PAXG/XAUT pair exists on Kraken
  * This is the key advantage for arbitrage!
  */
 export function hasDirectPaxgXautPair(): boolean {
-  return true; // Kraken supports PAXGXAUT directly
+  return getExchangeConfig('kraken')?.directPaxgXaut ?? false;
 }
 
 /**

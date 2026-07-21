@@ -1,109 +1,221 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePriceStore } from '@/store/priceStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { placeOrder } from '@lib/coinbaseTrader';
-import { tradeService } from '@/services/tradeService';
+import { useRiskContext } from '@/hooks/useRiskContext';
+import { useVenueQuotes } from '@/hooks/useVenueQuotes';
+import { resolvePaxgXautArbOrder } from '@lib/orderTypes';
+import { executeOrderWithLifecycle, OrderExecutionError } from '@lib/executeOrder';
+import {
+  comparePaxgXautArbFees,
+  getExchangeConfig,
+} from '@lib/exchanges';
+import {
+  DEFAULT_ARB_NET_THRESHOLD_PCT,
+  intraVenueSpread,
+  venueListsXaut,
+  type VenueGoldSnapshot,
+  type VenueLegQuote,
+} from '@lib/venueQuotes';
+import { computeSpread, formatPercent, formatPrice } from '@lib/utils';
 import { toast, Toaster } from 'react-hot-toast';
-import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
 
-// Skeleton loader component
-function SkeletonCard() {
+function SourceBadge({ source }: { source: VenueLegQuote['source'] }) {
+  const styles: Record<VenueLegQuote['source'], { bg: string; color: string; label: string }> = {
+    live: { bg: 'rgba(0,219,166,0.12)', color: 'var(--color-green)', label: 'LIVE' },
+    estimated: { bg: 'rgba(240,200,69,0.12)', color: 'var(--color-gold)', label: 'EST.' },
+    mock: { bg: 'rgba(124,92,252,0.12)', color: 'var(--color-accent)', label: 'MOCK' },
+  };
+  const s = styles[source];
   return (
-    <div style={{
-      background: 'var(--color-surface2)',
-      borderRadius: '12px',
-      padding: '20px',
-      height: '140px'
+    <span style={{
+      fontSize: '0.65rem',
+      padding: '2px 6px',
+      borderRadius: '999px',
+      background: s.bg,
+      color: s.color,
+      fontWeight: 700,
+      letterSpacing: '0.04em',
     }}>
-      <div className="skeleton" style={{ width: '60%', height: '14px', marginBottom: '16px' }} />
-      <div className="skeleton" style={{ width: '40%', height: '32px', marginBottom: '12px' }} />
-      <div className="skeleton" style={{ width: '80%', height: '12px' }} />
-    </div>
+      {s.label}
+    </span>
+  );
+}
+
+function formatLeg(leg: VenueLegQuote | undefined): string {
+  if (!leg) return '—';
+  return `${formatPrice(leg.bid)} / ${formatPrice(leg.ask)}`;
+}
+
+function VenueRow({ snapshot }: { snapshot: VenueGoldSnapshot }) {
+  const cfg = getExchangeConfig(snapshot.venueId);
+  const spread = intraVenueSpread(snapshot);
+  const hasXaut = venueListsXaut(snapshot.venueId);
+  const quoteOnly = cfg?.canTrade === false;
+
+  return (
+    <tr>
+      <td style={{ fontWeight: 600 }}>
+        {cfg?.icon} {cfg?.shortLabel ?? snapshot.venueId}
+        {quoteOnly && (
+          <span className="badge-accent" style={{ marginLeft: '8px', fontSize: '0.65rem' }}>
+            {' '}Quote only
+          </span>
+        )}
+      </td>
+      <td>
+        <div>{formatLeg(snapshot.paxgUsd)}</div>
+        <SourceBadge source={snapshot.paxgUsd.source} />
+      </td>
+      <td>
+        {hasXaut && snapshot.xautUsd ? (
+          <>
+            <div>{formatLeg(snapshot.xautUsd)}</div>
+            <SourceBadge source={snapshot.xautUsd.source} />
+          </>
+        ) : (
+          <span style={{ color: 'var(--color-muted)' }}>—</span>
+        )}
+      </td>
+      <td style={{ fontFamily: 'monospace' }}>
+        {spread ? (
+          <>
+            <div>{formatPercent(spread.rawSpreadPct)}</div>
+            {snapshot.paxgXautDirect && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-muted)' }}>
+                direct {formatPercent(computeSpread(snapshot.paxgXautDirect.bid, snapshot.paxgXautDirect.ask))}
+              </div>
+            )}
+          </>
+        ) : (
+          '—'
+        )}
+      </td>
+      <td style={{ fontFamily: 'monospace', color: 'var(--color-muted)' }}>
+        {spread ? `${spread.roundTripFeeBps} bps` : quoteOnly ? `${(cfg?.takerFeeBps ?? 0) * 2} bps` : '—'}
+      </td>
+      <td style={{
+        fontFamily: 'monospace',
+        fontWeight: 700,
+        color: spread && spread.netSpreadPct >= 0 ? 'var(--color-green)' : 'var(--color-red)',
+      }}>
+        {spread ? formatPercent(spread.netSpreadPct) : '—'}
+      </td>
+    </tr>
   );
 }
 
 export function GlobalArbitrageMonitor() {
-  const { prices, isLoading, error, lastUpdated } = usePriceStore();
-  const { dryRun, selectedExchange, maxTradeSize } = useSettingsStore();
+  const { prices } = usePriceStore();
+  const { dryRun, selectedExchange, maxTradeSize, setSelectedExchange } = useSettingsStore();
   const { user } = useAuthStore();
-  const [shanghaiPremium, setShanghaiPremium] = useState<number>(22.4);
-  const [loading, setLoading] = useState(true);
+  const { checkOrderRisk, nfaCopy, priceMap } = useRiskContext();
+  const {
+    snapshots,
+    bestOpportunity,
+    loading,
+    error,
+    lastUpdated,
+    isMock,
+    isStale,
+    dataSourceSummary,
+    refresh,
+  } = useVenueQuotes();
+
   const [executing, setExecuting] = useState(false);
-  const [asiaSignal] = useState({ premium: 1.8, volumeChange: 34 });
-  const [retryCount, setRetryCount] = useState(0);
+  const [showIndex, setShowIndex] = useState(false);
 
-  const paxg = prices['pax-gold']?.price || 0;
-  const xaut = prices['tether-gold']?.price || 0;
-  const spread = paxg && xaut ? ((xaut - paxg) / paxg * 100) : 0;
+  const paxgIndex = prices['pax-gold']?.price ?? 0;
+  const xautIndex = prices['tether-gold']?.price ?? 0;
+  const indexSpread = paxgIndex && xautIndex ? computeSpread(paxgIndex, xautIndex) : 0;
 
-  useEffect(() => {
-    // Simulate fetching Shanghai premium with retry logic
-    const timer = setTimeout(() => {
-      setShanghaiPremium(22.4);
-      setLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [retryCount]);
+  const selectedSnapshot = snapshots.find((s) => s.venueId === selectedExchange);
+  const selectedSpread = selectedSnapshot ? intraVenueSpread(selectedSnapshot) : null;
+  const netSpread = selectedSpread?.netSpreadPct ?? bestOpportunity?.netSpreadPct ?? 0;
+  const rawSpread = selectedSpread?.rawSpreadPct ?? bestOpportunity?.rawSpreadPct ?? 0;
+  const isArbOpportunity = Math.abs(netSpread) >= DEFAULT_ARB_NET_THRESHOLD_PCT;
 
-  // Retry handler
-  const handleRetry = () => {
-    setLoading(true);
-    setRetryCount(c => c + 1);
-  };
-
-  const premiumColor = shanghaiPremium > 15 ? 'var(--color-green)' : 'var(--color-gold)';
-  const isArbOpportunity = Math.abs(spread) > 0.55;
-  const isStale = lastUpdated ? (Date.now() - lastUpdated > 120000) : false;
+  const feeQuotes = comparePaxgXautArbFees(maxTradeSize * (paxgIndex || 2600));
+  const bestFeeVenue = feeQuotes[0];
+  const showVenueHint =
+    bestFeeVenue && bestFeeVenue.id !== selectedExchange && getExchangeConfig(selectedExchange)?.canTrade;
 
   const handleExecuteArb = async () => {
     if (executing || !isArbOpportunity) return;
     setExecuting(true);
 
-    const buyToken = spread > 0 ? 'PAXG' : 'XAUT';
-    const sellToken = spread > 0 ? 'XAUT' : 'PAXG';
+    const spreadSign = netSpread >= 0 ? rawSpread : -Math.abs(rawSpread);
+    const buyToken = spreadSign > 0 ? 'PAXG' : 'XAUT';
+    const sellToken = spreadSign > 0 ? 'XAUT' : 'PAXG';
+    const unitPrice =
+      spreadSign > 0
+        ? selectedSnapshot?.paxgUsd.ask ?? paxgIndex
+        : selectedSnapshot?.xautUsd?.ask ?? xautIndex;
+    const mode = dryRun ? 'paper' : 'live';
+
+    const risk = checkOrderRisk({
+      productId: spreadSign > 0 ? 'PAXG-USD' : 'XAUT-USD',
+      side: 'BUY',
+      requestedQty: maxTradeSize,
+      unitPriceUsd: unitPrice,
+      mode,
+    });
+
+    if (!risk.allowed) {
+      toast.error(
+        <div className="flex flex-col">
+          <span className="font-semibold">Risk guardrail blocked trade</span>
+          <ul className="text-sm mt-1 list-disc pl-4">
+            {risk.reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+          <span className="text-xs text-gray-500 mt-2">{nfaCopy}</span>
+        </div>,
+        { duration: 7000 },
+      );
+      setExecuting(false);
+      return;
+    }
+
+    const qty = risk.adjustedQty ?? maxTradeSize;
 
     const toastId = toast.loading(
       `Executing ARB: Buy ${buyToken} → Sell ${sellToken} on ${selectedExchange.toUpperCase()}...`,
-      { duration: 30000 }
+      { duration: 30000 },
     );
 
     try {
-      const buyOrder: TradeOrder = {
-        product_id: `${buyToken}-USD`,
-        side: 'BUY',
-        order_configuration: {
-          market_market_ioc: { base_size: maxTradeSize.toString() },
-        },
-      };
-
-      let result: OrderResult & { message?: string; exchange?: string };
-
-      if (user) {
-        result = await tradeService.executeTrade(buyOrder, dryRun, selectedExchange);
-      } else {
-        if (selectedExchange === 'kraken') {
-          toast.error('Kraken trading requires sign-in. Please sign in via Settings.', { id: toastId });
-          setExecuting(false);
-          return;
-        }
-        result = await placeOrder(buyOrder, dryRun);
-      }
+      const order = resolvePaxgXautArbOrder(selectedExchange, spreadSign, qty);
+      const { result } = await executeOrderWithLifecycle({
+        order,
+        dryRun,
+        exchange: selectedExchange,
+        user,
+        source: 'arb',
+        mode: dryRun ? 'paper' : 'live',
+        riskPrices: priceMap,
+        unitPriceUsd: unitPrice,
+      });
 
       if (result.success) {
         const msg = result.message || `ARB executed: Buy ${buyToken} / Sell ${sellToken}`;
         toast.success(
           `${dryRun ? 'DRY RUN' : 'Success'}: ${msg}`,
-          { id: toastId, duration: 5000, icon: dryRun ? '\u{1F512}' : '\u2705' }
+          { id: toastId, duration: 5000, icon: dryRun ? '\u{1F512}' : '\u2705' },
         );
       } else {
         toast.error(`Trade Failed: ${result.error || 'Unknown error'}`, { id: toastId, duration: 6000 });
       }
     } catch (err) {
-      toast.error(
-        `Execution Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        { id: toastId, duration: 6000 }
-      );
+      if (err instanceof OrderExecutionError) {
+        toast.error(err.message, { id: toastId, duration: 6000 });
+      } else {
+        toast.error(
+          `Execution Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          { id: toastId, duration: 6000 },
+        );
+      }
     } finally {
       setExecuting(false);
     }
@@ -112,39 +224,40 @@ export function GlobalArbitrageMonitor() {
   return (
     <section style={{ marginBottom: 'var(--space-2xl)' }}>
       <Toaster position="top-right" />
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 'var(--space-lg)',
         flexWrap: 'wrap',
-        gap: '12px'
+        gap: '12px',
       }}>
-        <h2 style={{ 
-          margin: 0, 
-          fontSize: 'var(--font-xl)', 
-          fontWeight: 700, 
+        <h2 style={{
+          margin: 0,
+          fontSize: 'var(--font-xl)',
+          fontWeight: 700,
           color: 'var(--color-text)',
-          letterSpacing: '-0.02em'
+          letterSpacing: '-0.02em',
         }}>
-          🌍 Global Arbitrage Monitor
+          Global Arbitrage Monitor
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {isStale && !error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {isStale && !loading && (
             <span style={{
               fontSize: 'var(--font-xs)',
               padding: '4px 10px',
               borderRadius: '999px',
               background: 'rgba(217,119,6,0.1)',
               color: 'var(--color-gold)',
-              fontWeight: 500
+              fontWeight: 500,
             }}>
-              ⏱ Stale data
+              Stale quotes
             </span>
           )}
           {error && (
             <button
-              onClick={handleRetry}
+              type="button"
+              onClick={refresh}
               style={{
                 fontSize: 'var(--font-xs)',
                 padding: '4px 10px',
@@ -152,79 +265,107 @@ export function GlobalArbitrageMonitor() {
                 border: '1px solid var(--color-border)',
                 background: 'transparent',
                 color: 'var(--color-muted)',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
-              🔄 Retry
+              Retry
             </button>
           )}
-          <span style={{ 
-            fontSize: 'var(--font-xs)', 
+          <span style={{
+            fontSize: 'var(--font-xs)',
             background: 'var(--color-surface2)',
             color: 'var(--color-muted)',
             padding: '4px 10px',
             borderRadius: '999px',
-            fontWeight: 500
+            fontWeight: 500,
           }}>
-            ● LIVE • Updated every 60s
+            {isMock ? 'MOCK' : 'LIVE'} · {dataSourceSummary || 'loading…'}
+            {lastUpdated ? ` · ${Math.max(0, Math.round((Date.now() - lastUpdated) / 1000))}s ago` : ''}
           </span>
         </div>
       </div>
 
-      <div className="glass-card" style={{
-        padding: '24px',
-      }}>
-        {/* Main Grid */}
+      <div className="glass-card" style={{ padding: '24px' }}>
+        {bestOpportunity && (
+          <div style={{
+            marginBottom: '20px',
+            padding: '14px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: bestOpportunity.profitable ? 'var(--color-gold-dim)' : 'var(--color-surface2)',
+            border: bestOpportunity.profitable ? '1px solid var(--color-gold)' : '1px solid var(--color-border)',
+            fontSize: '0.85rem',
+            lineHeight: 1.6,
+          }}>
+            <strong>Best cross-venue:</strong>{' '}
+            Buy {bestOpportunity.buyAsset} @ {getExchangeConfig(bestOpportunity.buyVenue)?.shortLabel},{' '}
+            sell {bestOpportunity.sellAsset} @ {getExchangeConfig(bestOpportunity.sellVenue)?.shortLabel}{' '}
+            → {formatPercent(bestOpportunity.rawSpreadPct)} raw,{' '}
+            <span style={{ fontWeight: 700 }}>{formatPercent(bestOpportunity.netSpreadPct)} net</span>
+            {bestOpportunity.profitable ? ' — opportunity' : ' — below threshold'}
+          </div>
+        )}
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table-zebra" style={{ width: '100%', fontSize: '0.85rem' }}>
+            <thead>
+          <tr>
+            <th scope="col" style={{ textAlign: 'left' }}>Venue</th>
+            <th scope="col" style={{ textAlign: 'left' }}>PAXG bid/ask</th>
+            <th scope="col" style={{ textAlign: 'left' }}>XAUT bid/ask</th>
+            <th scope="col" style={{ textAlign: 'left' }}>Intra spread</th>
+            <th scope="col" style={{ textAlign: 'left' }}>RT fees</th>
+            <th scope="col" style={{ textAlign: 'left' }}>Net edge</th>
+          </tr>
+        </thead>
+            <tbody>
+              {loading && snapshots.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    <div className="skeleton" style={{ height: '48px' }} />
+                  </td>
+                </tr>
+              ) : (
+                snapshots.map((snap) => <VenueRow key={snap.venueId} snapshot={snap} />)
+              )}
+            </tbody>
+          </table>
+        </div>
+
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: '20px',
+          marginTop: '24px',
+          paddingTop: '20px',
+          borderTop: '1px solid var(--color-border)',
         }}>
-          {/* PAXG vs XAUT Spread */}
-          {isLoading ? (
-            <SkeletonCard />
-          ) : (
-            <div style={{
-              background: 'var(--color-surface2)',
-              borderRadius: '12px',
-              padding: '20px',
-              border: isArbOpportunity ? '1px solid var(--color-gold)' : '1px solid transparent'
-            }}>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                color: 'var(--color-muted)', 
-                marginBottom: '10px',
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}>
-                PAXG ↔ XAUT Spread
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', marginBottom: '6px' }}>
+                Execute on {getExchangeConfig(selectedExchange)?.label ?? selectedExchange}
               </div>
-              <div style={{ 
-                fontSize: '2.2rem', 
+              <div style={{
+                fontSize: '2rem',
                 fontFamily: 'monospace',
                 fontWeight: 700,
-                color: spread > 0 ? 'var(--color-green)' : 'var(--color-red)',
-                letterSpacing: '-0.02em'
+                color: netSpread >= 0 ? 'var(--color-green)' : 'var(--color-red)',
               }}>
-                {spread >= 0 ? '+' : ''}{spread.toFixed(2)}%
+                {formatPercent(netSpread)} net
               </div>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                marginTop: '12px',
-                color: isArbOpportunity ? 'var(--color-gold)' : 'var(--color-muted)',
-                fontWeight: isArbOpportunity ? 700 : 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                {isArbOpportunity ? '🚨 ARB OPPORTUNITY' : '✓ Normal range'}
+              <div style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)', marginTop: '4px' }}>
+                Raw {formatPercent(rawSpread)} · threshold {DEFAULT_ARB_NET_THRESHOLD_PCT}%
               </div>
+            </div>
+
+            <div style={{ flex: '1 1 220px', maxWidth: '320px' }}>
               <button
+                type="button"
                 onClick={handleExecuteArb}
-                disabled={!isArbOpportunity || executing}
+                disabled={!isArbOpportunity || executing || !getExchangeConfig(selectedExchange)?.canTrade}
                 style={{
-                  marginTop: '16px',
                   width: '100%',
                   padding: '12px',
                   background: executing
@@ -243,149 +384,70 @@ export function GlobalArbitrageMonitor() {
                   fontWeight: 700,
                   cursor: isArbOpportunity && !executing ? 'pointer' : 'not-allowed',
                   opacity: isArbOpportunity && !executing ? 1 : 0.5,
-                  transition: 'all 0.15s ease'
                 }}
               >
                 {executing
-                  ? '⏳ Executing...'
+                  ? 'Executing…'
                   : dryRun
-                  ? `🔒 DRY RUN ARB on ${selectedExchange.toUpperCase()}`
-                  : `🚀 EXECUTE ARB on ${selectedExchange.toUpperCase()}`}
+                  ? `DRY RUN ARB on ${selectedExchange.toUpperCase()}`
+                  : `EXECUTE ARB on ${selectedExchange.toUpperCase()}`}
               </button>
-            </div>
-          )}
 
-          {/* Shanghai Premium */}
-          {loading ? (
-            <SkeletonCard />
-          ) : (
-            <div style={{
-              background: 'var(--color-surface2)',
-              borderRadius: '12px',
-              padding: '20px',
-              position: 'relative',
-              overflow: 'hidden',
-            }}>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                color: 'var(--color-muted)', 
-                marginBottom: '10px',
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}>
-                Shanghai Premium (SGE vs LBMA)
-              </div>
-              <div style={{ 
-                fontSize: '2.2rem', 
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                color: premiumColor,
-                letterSpacing: '-0.02em'
-              }}>
-                +${shanghaiPremium} /oz
-              </div>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                marginTop: '12px',
-                color: 'var(--color-green)',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                🔥 China physical demand surging
-              </div>
-              <div style={{
-                position: 'absolute',
-                bottom: '-15px',
-                right: '10px',
-                fontSize: '90px',
-                fontWeight: 900,
-                color: 'var(--color-green)',
-                opacity: 0.05,
-                pointerEvents: 'none'
-              }}>
-                SGE
-              </div>
+              {showVenueHint && bestFeeVenue && (
+                <div style={{ marginTop: '10px', fontSize: '0.75rem', color: 'var(--color-muted)' }}>
+                  {bestFeeVenue.label} saves ~{formatPercent(
+                    ((feeQuotes.find((q) => q.id === selectedExchange)?.roundTripBps ?? 0) -
+                      bestFeeVenue.roundTripBps) /
+                      100,
+                    false,
+                  )} fees.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExchange(bestFeeVenue.id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-accent)',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Switch to {getExchangeConfig(bestFeeVenue.id)?.shortLabel ?? bestFeeVenue.label}
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-
-          {/* Asia Demand Signal */}
-          {loading ? (
-            <SkeletonCard />
-          ) : (
-            <div style={{
-              background: 'var(--color-surface2)',
-              borderRadius: '12px',
-              padding: '20px',
-            }}>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                color: 'var(--color-muted)', 
-                marginBottom: '10px',
-                fontWeight: 500,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}>
-                Hang Seng / Asia Signal
-              </div>
-              <div style={{ 
-                fontSize: '2.2rem', 
-                fontFamily: 'monospace',
-                fontWeight: 700,
-                color: 'var(--color-accent)',
-                letterSpacing: '-0.02em'
-              }}>
-                +{asiaSignal.premium}%
-              </div>
-              <div style={{ 
-                fontSize: 'var(--font-xs)', 
-                marginTop: '12px',
-                color: 'var(--color-muted)',
-                lineHeight: 1.6,
-              }}>
-                HK-Shanghai gold bridge<br />
-                volume ↑ {asiaSignal.volumeChange}% this week<br />
-                <span style={{ color: 'var(--color-green)', fontWeight: 600 }}>Bullish for XAUT</span>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Quick Alerts */}
-        <div style={{
-          marginTop: '24px',
-          paddingTop: '20px',
-          borderTop: '1px solid var(--color-border)',
-          fontSize: '0.9rem',
-          fontFamily: 'monospace',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'var(--color-bg)',
-            padding: '14px 16px',
-            borderRadius: 'var(--radius-md)',
-          }}>
-            <span style={{ color: 'var(--color-text)' }}>XAUT cheaper on Binance Asia</span>
-            <span style={{ color: 'var(--color-green)', fontWeight: 700 }}>+0.42% edge → Rotate now</span>
-          </div>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'var(--color-bg)',
-            padding: '14px 16px',
-            borderRadius: 'var(--radius-md)',
-          }}>
-            <span style={{ color: 'var(--color-text)' }}>Shanghai Premium rising</span>
-            <span style={{ color: 'var(--color-green)', fontWeight: 700 }}>Global gold rally likely in 48h</span>
-          </div>
+        <div style={{ marginTop: '16px' }}>
+          <button
+            type="button"
+            onClick={() => setShowIndex((v) => !v)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-muted)',
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {showIndex ? '▼' : '▶'} CoinGecko index reference (EST.)
+          </button>
+          {showIndex && (
+            <div style={{
+              marginTop: '8px',
+              fontSize: '0.8rem',
+              color: 'var(--color-muted)',
+              fontFamily: 'monospace',
+            }}>
+              PAXG {formatPrice(paxgIndex)} · XAUT {formatPrice(xautIndex)} · spread{' '}
+              {formatPercent(indexSpread)}
+            </div>
+          )}
         </div>
       </div>
     </section>

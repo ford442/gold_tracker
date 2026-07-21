@@ -61,7 +61,7 @@ export function PerformanceComparisonChart() {
       }
     };
 
-    loadData();
+    void loadData();
     return () => controller.abort();
   }, []);
 

@@ -177,8 +177,8 @@ describe('createMeanReversionStrategy + runBacktest', () => {
 describe('createGoldExposureRebalancer + runBacktest', () => {
   it('buys gold sleeve when under target allocation', () => {
     const ticks = makeTicks({
-      bitcoin: Array(10).fill(10_000),
-      'pax-gold': Array(10).fill(3_300),
+      bitcoin: Array.from({ length: 10 }, () => 10_000),
+      'pax-gold': Array.from({ length: 10 }, () => 3_300),
     });
 
     const strategy = createGoldExposureRebalancer({

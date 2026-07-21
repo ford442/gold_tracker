@@ -4,7 +4,8 @@ import { usePortfolioStore } from '@/store/portfolioStore';
 import { usePriceStore } from '@/store/priceStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCoinbaseBalances } from '@/hooks/useCoinbaseBalances';
-import { ASSETS, fromSymbol, isGoldSleeve, resolvePortfolioAssetId } from '@lib/assets';
+import { ASSETS, fromSymbol, resolvePortfolioAssetId } from '@lib/assets';
+import { computePortfolioMetrics } from '@lib/riskEngine';
 import { PnLOverTimeChart } from './PnLOverTimeChart';
 import { PortfolioHeader } from '@components/portfolio/PortfolioHeader';
 import { PortfolioEntryForm } from '@components/portfolio/PortfolioEntryForm';
@@ -120,24 +121,33 @@ export function PortfolioTracker() {
     }
   };
 
-  const totalValue = entries.reduce((sum, e) => {
-    const assetId = resolvePortfolioAssetId(e.symbol);
-    const cur = getCurrentPrice(assetId, prices, goldPrice);
-    return sum + e.amount * cur;
-  }, 0);
+  const portfolioSnapshot = {
+    holdings: entries.reduce<{ assetId: string; units: number }[]>((acc, e) => {
+      const assetId = resolvePortfolioAssetId(e.symbol);
+      if (assetId) acc.push({ assetId, units: e.amount });
+      return acc;
+    }, []),
+    prices: Object.fromEntries(
+      entries
+        .map((e) => resolvePortfolioAssetId(e.symbol))
+        .filter(Boolean)
+        .map((id) => [id, getCurrentPrice(id, prices, goldPrice)]),
+    ) as Record<string, number>,
+  };
+  for (const id of ['gold', 'pax-gold', 'tether-gold', 'bitcoin', 'ethereum'] as const) {
+    if (!portfolioSnapshot.prices[id]) {
+      portfolioSnapshot.prices[id] = getCurrentPrice(id, prices, goldPrice);
+    }
+  }
+
+  const { totalValue, goldPct, cryptoPct } = (() => {
+    const m = computePortfolioMetrics(portfolioSnapshot);
+    return { totalValue: m.totalValueUsd, goldPct: m.goldPct, cryptoPct: m.cryptoPct };
+  })();
 
   const totalCost = entries.reduce((sum, e) => sum + e.amount * e.buyPrice, 0);
   const totalPnL = totalValue - totalCost;
   const totalPnLPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
-
-  const goldValue = entries.reduce((sum, e) => {
-    const assetId = resolvePortfolioAssetId(e.symbol);
-    if (!isGoldSleeve(assetId)) return sum;
-    const cur = getCurrentPrice(assetId, prices, goldPrice);
-    return sum + e.amount * cur;
-  }, 0);
-  const goldPct = totalValue > 0 ? (goldValue / totalValue) * 100 : 0;
-  const cryptoPct = 100 - goldPct;
 
   const sellingMark =
     sellingEntry != null ? getPriceForSymbol(sellingEntry.symbol) : 0;

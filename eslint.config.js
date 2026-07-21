@@ -4,19 +4,40 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
-const gradualTypeRules = {
-  // Gradual rollout: keep CI green while tightening type safety over time.
-  '@typescript-eslint/no-unsafe-assignment': 'off',
-  '@typescript-eslint/no-unsafe-member-access': 'off',
-  '@typescript-eslint/no-unsafe-call': 'off',
-  '@typescript-eslint/no-unsafe-return': 'off',
-  '@typescript-eslint/no-unsafe-argument': 'off',
-  '@typescript-eslint/no-floating-promises': 'off',
-  '@typescript-eslint/no-misused-promises': 'off',
-  '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-  '@typescript-eslint/require-await': 'off',
-  '@typescript-eslint/restrict-template-expressions': 'off',
-} 
+const strictTypeRuleKeys = [
+  '@typescript-eslint/no-unsafe-assignment',
+  '@typescript-eslint/no-unsafe-member-access',
+  '@typescript-eslint/no-unsafe-call',
+  '@typescript-eslint/no-unsafe-return',
+  '@typescript-eslint/no-unsafe-argument',
+  '@typescript-eslint/no-floating-promises',
+  '@typescript-eslint/no-misused-promises',
+  '@typescript-eslint/no-unnecessary-type-assertion',
+  '@typescript-eslint/require-await',
+  '@typescript-eslint/restrict-template-expressions',
+]
+
+const gradualTypeRules = Object.fromEntries(
+  strictTypeRuleKeys.map((key) => [key, 'off']),
+)
+
+const strictTypeRules = Object.fromEntries(
+  strictTypeRuleKeys.map((key) => [key, 'error']),
+)
+
+const isStrictLint = process.env.ESLINT_STRICT === '1'
+
+const phasedTypeSafetyFiles = [
+  'src/lib/**/*.{ts,tsx}',
+  'src/hooks/**/*.{ts,tsx}',
+  'src/store/**/*.{ts,tsx}',
+  'src/components/**/*.{ts,tsx}',
+]
+
+const phasedTypeSafetyRules = {
+  '@typescript-eslint/no-floating-promises': 'error',
+  '@typescript-eslint/no-unsafe-assignment': 'error',
+}
 
 export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'supabase/**'] },
@@ -37,9 +58,13 @@ export default tseslint.config(
       },
     },
     rules: {
-      ...gradualTypeRules,
+      ...(isStrictLint ? strictTypeRules : gradualTypeRules),
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
+  },
+  {
+    files: phasedTypeSafetyFiles,
+    rules: phasedTypeSafetyRules,
   },
   {
     files: ['src/**/*.test.ts'],

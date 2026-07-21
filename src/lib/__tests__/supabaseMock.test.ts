@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMockSupabaseClient } from '../supabaseMock';
+import { createMockSupabaseClient } from '@/lib/supabaseMock';
 
 describe('createMockSupabaseClient', () => {
   it('returns null session and disabled auth errors', async () => {

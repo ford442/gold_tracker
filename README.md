@@ -18,11 +18,9 @@ Real-time gold & crypto terminal tracking spot gold, tokenized gold (PAXG, XAUT)
 - **Strategy Lab** — Pure-TypeScript backtesting engine (arbitrage, mean-reversion, gold-exposure rebalancer, hold), equity curve, trade log, and a **Scenario Lab** for macro-shock stress tests
 - **Trade Replay** — Buy/sell markers with forward projections
 - **Exchange Trading (optional)** — Coinbase (CDP ES256 JWT) and Kraken (direct PAXG/XAUT pair), in local or server-secure mode
-- **Gold News Feed** — Curated gold/crypto/macro headlines (currently mock data — see note below)
+- **Gold News Feed** — Curated mock headlines today ([#52](https://github.com/ford442/gold_tracker/issues/52) tracks a server-side RSS proxy)
 - **Mobile & PWA** — Section-based navigation, touch controls, installable PWA with offline price snapshots
 - **Dark/Light Mode** — Persisted via localStorage
-
-> **News note:** Live Kitco RSS fetching is currently **disabled** due to CORS-proxy reliability issues. `fetchGoldNews()` returns curated mock headlines. See `src/lib/api.ts`.
 
 ## Architecture
 
@@ -155,11 +153,12 @@ On `main`, CI also uploads a `goldtrackr-dist` build artifact and deploys to the
 
 Direction is tracked in [GitHub Issues](https://github.com/ford442/gold_tracker/issues). Current themes:
 
-- **Foundation** — [#39](https://github.com/ford442/gold_tracker/issues/39) docs refresh (this), [#40](https://github.com/ford442/gold_tracker/issues/40) typed Supabase client & key-persistence audit, [#34](https://github.com/ford442/gold_tracker/issues/34) shared market-history cache, [#36](https://github.com/ford442/gold_tracker/issues/36) Playwright smoke E2E
-- **Trading & data** — [#38](https://github.com/ford442/gold_tracker/issues/38) WebSocket streaming prices, [#35](https://github.com/ford442/gold_tracker/issues/35) paper-trading ledger, [#33](https://github.com/ford442/gold_tracker/issues/33) multi-exchange expansion
-- **Analytics** — [#41](https://github.com/ford442/gold_tracker/issues/41) tax-lot / cost-basis export & gold-oz reporting
+- **Docs** — [#51](https://github.com/ford442/gold_tracker/issues/51) refresh `code_plan.md` / roadmap (this pass)
+- **OMS foundation** — [#46](https://github.com/ford442/gold_tracker/issues/46) order lifecycle, [#45](https://github.com/ford442/gold_tracker/issues/45) shared registry, [#47](https://github.com/ford442/gold_tracker/issues/47) adapter unification, [#50](https://github.com/ford442/gold_tracker/issues/50) live risk engine *(issues may be closed before merge — verify on `main`)*
+- **Data & markets** — [#48](https://github.com/ford442/gold_tracker/issues/48) WebSocket prices, [#52](https://github.com/ford442/gold_tracker/issues/52) news proxy, [#53](https://github.com/ford442/gold_tracker/issues/53) real multi-venue arb
+- **Performance** — [#54](https://github.com/ford442/gold_tracker/issues/54) analytics web workers
 
-See **[code_plan.md](code_plan.md)** for the longer OMS vision with a done-vs-remaining checklist.
+See **[docs/ROADMAP.md](docs/ROADMAP.md)** for a one-page summary and **[code_plan.md](code_plan.md)** for the full OMS vision with Done/Remaining checklists.
 
 ## Security
 

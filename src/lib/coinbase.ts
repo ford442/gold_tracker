@@ -1,5 +1,6 @@
 import * as jose from 'jose';
 import { COINBASE_CURRENCY_TO_ASSET_ID } from './assets';
+import { parseCoinbaseAccountsResponse } from './coinbaseApiTypes';
 
 export { COINBASE_CURRENCY_TO_ASSET_ID };
 
@@ -70,6 +71,6 @@ export async function getCoinbaseAccounts(
     throw new Error(`Coinbase API error: ${res.status} ${res.statusText}`);
   }
 
-  const data = await res.json();
+  const data = parseCoinbaseAccountsResponse(await res.json());
   return (data.accounts ?? []) as CoinbaseAccount[];
 }

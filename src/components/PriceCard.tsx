@@ -2,6 +2,7 @@ import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import type { PriceData } from '@/types';
 import { assetIcon, isGoldToken } from '@lib/assets';
 import { formatPrice, formatPercent } from '@lib/utils';
+import { usePriceFlash } from '@/hooks/usePriceFlash';
 
 interface Props {
   data: PriceData;
@@ -10,6 +11,7 @@ interface Props {
 
 // Asset icons mapping — see src/lib/assets.ts
 export function PriceCard({ data, goldPrice }: Props) {
+  const flash = usePriceFlash(data.price);
   const isPositive24h = data.change24h >= 0;
   const isPositive7d = data.change7d >= 0;
   const isGoldTokenAsset = isGoldToken(data.id);
@@ -78,7 +80,7 @@ export function PriceCard({ data, goldPrice }: Props) {
 
       {/* Price — bold and dominant, monospaced for precision */}
       <div 
-        className="mono-num"
+        className={`mono-num${flash === 'up' ? ' flash-up' : flash === 'down' ? ' flash-down' : ''}`}
         style={{ 
           fontSize: '1.55rem', 
           fontWeight: 800, 

@@ -12,6 +12,11 @@ const BLOCKED_HOSTS = [
   '**/api.coingecko.com/**',
   '**/api.metalpriceapi.com/**',
   '**/allorigins.win/**',
+  '**/advanced-trade-ws.coinbase.com/**',
+  '**/ws.kraken.com/**',
+  '**/api.coinbase.com/**',
+  '**/api.kraken.com/**',
+  '**/api.gemini.com/**',
 ];
 
 export const test = base.extend({

@@ -9,7 +9,8 @@ const ORDERED_IDS = DASHBOARD_PRICE_ASSET_IDS;
 const POLL_INTERVAL = 60; // seconds
 
 export function Dashboard() {
-  const { prices, goldSpot, isLoading, lastUpdated, isMockData, error } = usePriceStore();
+  const { prices, goldSpot, isLoading, lastUpdated, isMockData, error, transportKind } = usePriceStore();
+  const isStreaming = transportKind === 'stream' && !isMockData && !error;
   const [countdown, setCountdown] = useState(POLL_INTERVAL);
   const [now, setNow] = useState(() => Date.now());
 
@@ -30,6 +31,14 @@ export function Dashboard() {
 
   // Determine status color and label
   const statusInfo = useMemo(() => {
+    if (isStreaming) {
+      return {
+        color: 'var(--color-green)',
+        bg: 'rgba(5,150,105,0.1)',
+        label: 'Streaming',
+        dotClass: 'live-pulse',
+      };
+    }
     if (isMockData || error) {
       return { 
         color: 'var(--color-red)', 
@@ -52,7 +61,7 @@ export function Dashboard() {
       label: 'Live',
       dotClass: 'live-pulse'
     };
-  }, [isMockData, error, lastUpdated, now]);
+  }, [isMockData, error, lastUpdated, now, isStreaming]);
 
   return (
     <section aria-label="Live Prices Dashboard" style={{ marginBottom: 'var(--space-xl)' }}>
@@ -114,8 +123,8 @@ export function Dashboard() {
             </span>
           )}
           
-          {/* Countdown */}
-          {lastUpdated && !isLoading && (
+          {/* Countdown — hidden while WebSocket stream is active */}
+          {lastUpdated && !isLoading && !isStreaming && (
             <div style={{ 
               display: 'flex', 
               alignItems: 'center',

@@ -19,8 +19,10 @@ import {
 } from './exchanges';
 import { getCoinbaseAccounts } from './coinbase';
 import { fromCoinbaseCode } from './assets';
-import { placeOrder as coinbasePlaceOrder } from './coinbaseTrader';
-import type { TradeOrder, OrderResult } from './coinbaseTrader';
+import { placeOrder as coinbasePlaceOrder, testCoinbaseConnection, getCoinbaseOrderStatus, cancelCoinbaseOrder } from './coinbaseTrader';
+import type { TradeOrder, OrderResult, OrderStatusResult, CancelOrderResult } from './orderTypes';
+
+export type { TradeOrder, OrderResult } from './orderTypes';
 
 /** Normalized balance across venues. */
 export interface AdapterBalance {
@@ -37,6 +39,8 @@ export interface AdapterCredentials {
   krakenApiSecret?: string;
 }
 
+export type ExecutionPath = 'server' | 'local' | 'unsupported';
+
 export interface ExchangeAdapter {
   readonly id: ExchangeId;
   readonly config: ExchangeConfig;
@@ -51,11 +55,36 @@ export interface ExchangeAdapter {
    * to go through `tradeService`; this covers the local/no-Supabase path.
    */
   placeOrder(order: TradeOrder, dryRun: boolean, creds: AdapterCredentials): Promise<OrderResult>;
+  /** Verify API credentials (client-side where supported). */
+  testConnection(creds: AdapterCredentials): Promise<boolean>;
+  /** Lifecycle stub for Phase B — not wired to UI yet. */
+  getOrderStatus?(
+    orderId: string,
+    productId: string,
+    creds: AdapterCredentials,
+  ): Promise<OrderStatusResult>;
+  /** Cancel an open order (venue permitting). */
+  cancelOrder?(
+    orderId: string,
+    productId: string,
+    creds: AdapterCredentials,
+  ): Promise<import('./orderTypes').CancelOrderResult>;
 }
+
+const orderStatusStub = async (): Promise<OrderStatusResult> => ({ status: 'unknown' });
+const cancelStub = async (): Promise<CancelOrderResult> => ({
+  success: false,
+  error: 'Cancel is only available in server-secure mode for this venue',
+});
 
 function makeAdapter(
   id: ExchangeId,
-  overrides: Partial<Pick<ExchangeAdapter, 'getBalances' | 'placeOrder'>> = {},
+  overrides: Partial<
+    Pick<
+      ExchangeAdapter,
+      'getBalances' | 'placeOrder' | 'testConnection' | 'getOrderStatus' | 'cancelOrder'
+    >
+  > = {},
 ): ExchangeAdapter {
   const config = getExchangeConfig(id);
   if (!config) throw new Error(`Unknown exchange id: ${id}`);
@@ -75,6 +104,11 @@ function makeAdapter(
       (async () => {
         throw new Error(`${config.label} trading is only available in server-secure mode`);
       }),
+    testConnection:
+      overrides.testConnection ??
+      (async () => false),
+    getOrderStatus: overrides.getOrderStatus ?? orderStatusStub,
+    cancelOrder: overrides.cancelOrder ?? cancelStub,
   };
 }
 
@@ -97,11 +131,24 @@ const coinbaseAdapter = makeAdapter('coinbase', {
   async placeOrder(order, dryRun) {
     return coinbasePlaceOrder(order, dryRun);
   },
+  async testConnection(creds) {
+    return testCoinbaseConnection(creds);
+  },
+  async getOrderStatus(orderId, productId, creds) {
+    return getCoinbaseOrderStatus(orderId, productId, creds);
+  },
+  async cancelOrder(orderId, productId, creds) {
+    return cancelCoinbaseOrder(orderId, productId, creds);
+  },
 });
 
 // Kraken has no browser-side signing here (HMAC signing happens in the Edge
 // Function); local placeOrder/getBalances therefore route through server mode.
-const krakenAdapter = makeAdapter('kraken');
+const krakenAdapter = makeAdapter('kraken', {
+  async testConnection() {
+    return false;
+  },
+});
 
 const ADAPTERS: Partial<Record<ExchangeId, ExchangeAdapter>> = {
   coinbase: coinbaseAdapter,
@@ -111,6 +158,35 @@ const ADAPTERS: Partial<Record<ExchangeId, ExchangeAdapter>> = {
 /** Get the adapter for a venue id, or undefined for unknown/unregistered ids. */
 export function getAdapter(id: string): ExchangeAdapter | undefined {
   return (ADAPTERS as Record<string, ExchangeAdapter | undefined>)[id];
+}
+
+/** Map persisted settings fields to adapter credentials. */
+export function adapterCredentialsFromSettings(settings: {
+  cdpKeyName?: string;
+  cdpPrivateKey?: string;
+  krakenApiKey?: string;
+  krakenApiSecret?: string;
+}): AdapterCredentials {
+  return {
+    cdpKeyName: settings.cdpKeyName,
+    cdpPrivateKey: settings.cdpPrivateKey,
+    krakenApiKey: settings.krakenApiKey,
+    krakenApiSecret: settings.krakenApiSecret,
+  };
+}
+
+/**
+ * Resolve how an order should be routed for a venue.
+ * Kraken local trading is blocked (HMAC stays server-side).
+ */
+export function canExecuteLocally(exchangeId: string, user: unknown): ExecutionPath {
+  if (user) return 'server';
+
+  const adapter = getAdapter(exchangeId);
+  if (!adapter?.config.canTrade) return 'unsupported';
+  if (exchangeId === 'kraken') return 'unsupported';
+
+  return 'local';
 }
 
 export { coinbaseAdapter, krakenAdapter };

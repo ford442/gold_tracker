@@ -1,6 +1,6 @@
 # Code Plan — GoldTrackr OMS Vision
 
-This document frames GoldTrackr's evolution from a monitoring dashboard toward a **personal-scale order-management system (OMS)** for tokenized gold and crypto. It is a *forward-looking vision*, not a description of the current build — the current build is documented in [README.md](README.md) and [AGENTS.md](AGENTS.md).
+This document frames GoldTrackr's evolution from a monitoring dashboard toward a **personal-scale order-management system (OMS)** for tokenized gold and crypto. It is a *forward-looking vision*, not a description of the current build — the current build is documented in [README.md](README.md) and [AGENTS.md](AGENTS.md). For a one-page summary, see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 > **Scope note.** The goal is a robust *personal* gold/crypto terminal with real dry-run-first execution — **not** an HFT or regulated multi-tenant trading venue. Several rows below (KYC/AML, MiFID/SEC reporting, sub-ms latency) are listed for completeness but are explicitly **out of scope** for this project.
 
@@ -10,7 +10,7 @@ This document frames GoldTrackr's evolution from a monitoring dashboard toward a
 
 ## 1. Where We Are vs. Where We're Going
 
-The original version of this plan claimed GoldTrackr had *no order execution* and *no backend*. **That is no longer true.** GoldTrackr now has Coinbase (CDP) and Kraken execution paths, a Supabase backend with Edge Functions and AES-GCM key storage, a pure-TypeScript backtesting engine, and a regime/fidelity analytics layer. The checklists below reflect that reality.
+The original version of this plan claimed GoldTrackr had *no order execution* and *no backend*. **That is no longer true.** GoldTrackr now has Coinbase (CDP) and Kraken execution paths, a Supabase backend with Edge Functions and AES-GCM key storage, a pure-TypeScript backtesting engine, and a regime/fidelity analytics layer. The checklists below reflect **`main` branch reality** as of the last refresh ([#51](https://github.com/ford442/gold_tracker/issues/51)).
 
 ### Done ✅ (already shipped)
 
@@ -26,19 +26,30 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 - [x] **Portfolio persistence** — Zustand persist + optional Coinbase balance sync
 - [x] **Testing & CI** — Vitest unit tests on pure `src/lib/` modules with coverage gate; lint/test/build on every PR
 - [x] **Alerting** — desktop arbitrage alerts + configurable alert rules
+- [x] **Paper-trading ledger** ([#35](https://github.com/ford442/gold_tracker/issues/35)) — `paperTradeStore`, `PaperLedgerPanel`, dry-run fills via `lib/paperTrade.ts`
+- [x] **Shared market-history cache** ([#34](https://github.com/ford442/gold_tracker/issues/34)) — `lib/marketCache.ts` (TTL + in-flight dedupe)
+- [x] **Multi-exchange adapter Phase A** ([#33](https://github.com/ford442/gold_tracker/issues/33)) — `exchangeAdapters.ts` + `exchanges.ts` (Coinbase/Kraken; arb monitor not yet unified)
+- [x] **E2E smoke tests** ([#36](https://github.com/ford442/gold_tracker/issues/36)) — `e2e/` + dedicated CI job
+- [x] **Tax-lot accounting** ([#41](https://github.com/ford442/gold_tracker/issues/41)) — `portfolioLots.ts` + cost-basis / gold-oz UI
+- [x] **Hardened key UX** ([#40](https://github.com/ford442/gold_tracker/issues/40)) — typed Supabase client + mock fallback
 
 ### Remaining ▢ (the OMS gap)
 
-- [ ] **Full order lifecycle** — partial fills, cancellations, reconciliation after outages, resend of lost orders (today: fire-and-report execution)
-- [ ] **Paper-trading ledger** — persist simulated fills and reconcile against portfolio ([#35](https://github.com/ford442/gold_tracker/issues/35))
-- [ ] **Streaming prices** — WebSocket transport with polling fallback for sub-minute updates ([#38](https://github.com/ford442/gold_tracker/issues/38))
-- [ ] **Shared market-history cache** — dedupe CoinGecko chart requests across panels ([#34](https://github.com/ford442/gold_tracker/issues/34))
-- [ ] **Multi-exchange adapter interface** — unify Coinbase/Kraken behind one `ExchangeAdapter`; add venues; feed the global monitor with *real* quotes ([#33](https://github.com/ford442/gold_tracker/issues/33))
-- [ ] **Automated risk engine** — position/exposure limits, stop-loss/take-profit automation, live margin
-- [ ] **Tax-lot accounting** — FIFO/HIFO cost basis, realized-gains journal, CSV export, aggregate fine-gold-oz widget ([#41](https://github.com/ford442/gold_tracker/issues/41))
-- [ ] **E2E test coverage** — Playwright smoke tests over critical user paths with stubbed network ([#36](https://github.com/ford442/gold_tracker/issues/36))
-- [ ] **Hardened key UX** — typed Supabase client, stronger local-mode warnings, optional passphrase-encrypted session unlock ([#40](https://github.com/ford442/gold_tracker/issues/40))
-- [ ] **Monitoring & observability** — connectivity health checks, trade-failure alerts, latency tracking
+- [ ] **Order lifecycle & reconciliation** ([#46](https://github.com/ford442/gold_tracker/issues/46)) — durable journal, partial fills, cancel, reconcile after outages (today: fire-and-report execution)
+- [ ] **Shared exchange registry (client + Edge)** ([#45](https://github.com/ford442/gold_tracker/issues/45)) — one venue artifact for Vite and Deno; stop duplicating `PAIR_MAP` in Edge Functions
+- [ ] **Adapter unification** ([#47](https://github.com/ford442/gold_tracker/issues/47)) — route all execution paths through `ExchangeAdapter` (e.g. `GlobalArbitrageMonitor` still imports `coinbaseTrader` on main)
+- [ ] **Live automated risk engine** ([#50](https://github.com/ford442/gold_tracker/issues/50)) — pre-trade exposure limits, kill switch, daily-loss guardrails
+- [ ] **WebSocket price transport** ([#48](https://github.com/ford442/gold_tracker/issues/48)) — sub-minute crypto ticks with polling fallback (re-open #38 scope)
+- [ ] **Trade & connectivity observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — API health, trade-failure history, latency / cache metrics
+- [x] **Real multi-venue arbitrage (Phase B)** ([#53](https://github.com/ford442/gold_tracker/issues/53)) — replace synthetic global-monitor signals with net-of-fees cross-venue quotes
+- [ ] **Gold news proxy** ([#52](https://github.com/ford442/gold_tracker/issues/52)) — server-side RSS via Supabase Edge Function (re-open #28 scope)
+- [ ] **Analytics web workers** ([#54](https://github.com/ford442/gold_tracker/issues/54)) — offload backtests / regime math before WASM (#32)
+
+**Mock vs live vs shipped (on `main` today):**
+
+- **Mock** — no API keys or offline → CoinGecko / MetalPrice / news mocks (`fetchGoldNews()` in `api.ts`)
+- **Live data** — keys present → real prices via 60s REST poll; news still mock until [#52](https://github.com/ford442/gold_tracker/issues/52)
+- **Live trading** — server-secure or local keys with dry-run off; still fire-and-report until [#46](https://github.com/ford442/gold_tracker/issues/46) / [#50](https://github.com/ford442/gold_tracker/issues/50) land
 
 ### Out of scope 🚫 (intentionally not pursued)
 
@@ -49,15 +60,34 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 
 ---
 
+## For agents — closed issues vs shipped
+
+**Rule of thumb:** GitHub issue state ≠ ship status. Use this checklist + file presence on `main` before assuming a feature exists.
+
+| Closed issue | Why closed early | Replacement | Verify on `main` by |
+|--------------|------------------|-------------|---------------------|
+| [#28](https://github.com/ford442/gold_tracker/issues/28) news RSS | CORS / no server proxy | [#52](https://github.com/ford442/gold_tracker/issues/52) | `api.ts` → `fetchGoldNews()` returns mock |
+| [#38](https://github.com/ford442/gold_tracker/issues/38) WebSocket | Not implemented | [#48](https://github.com/ford442/gold_tracker/issues/48) | `useGoldPrices` 60s `POLL_INTERVAL` only |
+| [#33](https://github.com/ford442/gold_tracker/issues/33) multi-venue | Phase A only | [#45](https://github.com/ford442/gold_tracker/issues/45), [#47](https://github.com/ford442/gold_tracker/issues/47), [#53](https://github.com/ford442/gold_tracker/issues/53) | `exchangeAdapters` exists; arb monitor has synthetic signals |
+| [#32](https://github.com/ford442/gold_tracker/issues/32) WASM perf | Deferred | [#54](https://github.com/ford442/gold_tracker/issues/54) | no `src/workers/` on `main` |
+| [#46](https://github.com/ford442/gold_tracker/issues/46)–[#50](https://github.com/ford442/gold_tracker/issues/50) foundation | May be closed before merge | same issue numbers | `git ls-tree origin/main -- <paths>` — see Remaining table |
+
+When in doubt, read [docs/ROADMAP.md](docs/ROADMAP.md) and the Done/Remaining lists above rather than trusting a closed issue alone.
+
+---
+
 ## 2. Trading-Proficiency Assessment (updated)
 
-GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies, and stress-test a portfolio. What separates it from a *proficient* OMS is primarily **order-lifecycle robustness** and **automated risk controls**, not the absence of execution or a backend. The prioritized path to close that gap:
+GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies, stress-test a portfolio, and practice via the paper ledger. What separates it from a *proficient* OMS is primarily **order-lifecycle robustness**, **automated risk controls**, and **live market-data depth** — not the absence of execution or a backend. The prioritized path to close that gap:
 
-1. **Paper-trading ledger** ([#35](https://github.com/ford442/gold_tracker/issues/35)) — safe practice loop; foundation for realistic fill/PnL history.
-2. **Order lifecycle & reconciliation** — track each order's states, handle partial fills and cancels, reconcile after outages.
-3. **Risk engine** — position/exposure limits and stop-loss/take-profit automation on top of the existing exposure math.
-4. **Streaming data** ([#38](https://github.com/ford442/gold_tracker/issues/38)) + **shared history cache** ([#34](https://github.com/ford442/gold_tracker/issues/34)) — tighter arb/trade UX and fewer rate-limit failures.
-5. **Exchange adapter interface** ([#33](https://github.com/ford442/gold_tracker/issues/33)) — make new venues cheap and feed the arb monitor real quotes.
+1. **Order lifecycle & reconciliation** ([#46](https://github.com/ford442/gold_tracker/issues/46)) — durable journal, partial fills, cancel, reconcile after tab sleep / network blips
+2. **Live risk engine** ([#50](https://github.com/ford442/gold_tracker/issues/50)) — pre-trade guardrails before non-dry-run capital
+3. **Registry + adapter unification** ([#45](https://github.com/ford442/gold_tracker/issues/45), [#47](https://github.com/ford442/gold_tracker/issues/47)) — one venue registry; all execution through `ExchangeAdapter`
+4. **Streaming prices** ([#48](https://github.com/ford442/gold_tracker/issues/48)) — WebSocket + poll fallback for arb alerts and trade suggestions
+5. **Observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — API health, trade-failure history, latency tracking
+6. **Real multi-venue arb** ([#53](https://github.com/ford442/gold_tracker/issues/53)) — replace synthetic global-monitor cards with net-of-fees cross-venue spreads
+7. **News proxy** ([#52](https://github.com/ford442/gold_tracker/issues/52)) — server-side RSS so Markets is not mock-only
+8. **Analytics workers** ([#54](https://github.com/ford442/gold_tracker/issues/54)) — main-thread offload for Scenario Lab / regime; try before WASM
 
 ---
 
@@ -75,4 +105,4 @@ Keep the strategy engine, regime math, fee helpers, and API clients free of Reac
 
 ### Conclusion
 
-GoldTrackr has grown from a read-only dashboard into a working personal trading terminal with execution, a backend, backtesting, and regime analytics. The remaining work is an **OMS-hardening** effort — order lifecycle, automated risk, paper trading, streaming data, and test depth — tracked in the repository's [open issues](https://github.com/ford442/gold_tracker/issues). This document should be updated as those items ship.
+GoldTrackr has grown from a read-only dashboard into a working personal trading terminal with execution, a backend, backtesting, paper trading, and regime analytics. The remaining work is an **OMS-hardening** effort — tracked in [#48](https://github.com/ford442/gold_tracker/issues/48), [#52](https://github.com/ford442/gold_tracker/issues/52)–[#54](https://github.com/ford442/gold_tracker/issues/54), and foundation issues [#45](https://github.com/ford442/gold_tracker/issues/45)–[#50](https://github.com/ford442/gold_tracker/issues/50) (verify merge on `main`). See [docs/ROADMAP.md](docs/ROADMAP.md) for the navigable summary. Update this document as those items ship.

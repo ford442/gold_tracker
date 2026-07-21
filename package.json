@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:strict": "ESLINT_STRICT=1 eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,8 +1,6 @@
 import { supabase } from '@lib/supabase';
-import type { TradeOrder, OrderResult } from '@lib/coinbaseTrader';
+import type { TradeOrder, PlaceTradeResponse, OrderStatusResult, CancelOrderResult } from '@lib/orderTypes';
 import type { Exchange } from '@/store/settingsStore';
-
-type PlaceTradeResponse = OrderResult & { message?: string; exchange?: string; success?: boolean };
 
 export const tradeService = {
   async storeKeys(exchange: Exchange, keys: Record<string, string>) {
@@ -25,10 +23,10 @@ export const tradeService = {
   },
 
   async executeTrade(
-    order: TradeOrder, 
-    dryRun: boolean, 
-    exchange: Exchange
-  ): Promise<OrderResult & { message?: string; exchange?: string }> {
+    order: TradeOrder,
+    dryRun: boolean,
+    exchange: Exchange,
+  ): Promise<PlaceTradeResponse> {
     const { data, error } = await supabase.functions.invoke<PlaceTradeResponse>('place-trade', {
       body: { order, dryRun, exchange },
     });
@@ -37,5 +35,29 @@ export const tradeService = {
       throw new Error('Empty response from place-trade');
     }
     return data;
+  },
+
+  async getOrderStatus(
+    orderId: string,
+    exchange: Exchange,
+    productId: string,
+  ): Promise<OrderStatusResult> {
+    const { data, error } = await supabase.functions.invoke<OrderStatusResult>('place-trade', {
+      body: { action: 'status', orderId, exchange, productId },
+    });
+    if (error) throw error;
+    return data ?? { status: 'unknown', error: 'Empty status response' };
+  },
+
+  async cancelOrder(
+    orderId: string,
+    exchange: Exchange,
+    productId: string,
+  ): Promise<CancelOrderResult> {
+    const { data, error } = await supabase.functions.invoke<CancelOrderResult>('place-trade', {
+      body: { action: 'cancel', orderId, exchange, productId },
+    });
+    if (error) throw error;
+    return data ?? { success: false, error: 'Empty cancel response' };
   },
 };

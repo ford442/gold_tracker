@@ -7,11 +7,11 @@ import {
   HORIZON_PARAMS,
   generateSyntheticSpotPrices,
   computeFidelityScores,
-  rollingCorrelations,
   alignToRefLength,
   downsample,
   makeFallbackResult,
 } from '@lib/regime';
+import { rollingCorrelationsAsync } from '@lib/workerClient';
 import { sparklinePrices } from '@lib/utils';
 import type { AnalysisHorizon, RegimeAnalysisResult } from '@/types';
 
@@ -56,10 +56,12 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
 
     const ids = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'] as const;
 
-    Promise.all(
-      ids.map((id) => getMarketChartSeries(id, days, interval, { signal: controller.signal, apiKey }))
-    )
-      .then(([paxgRaw, xautRaw, btcRaw, ethRaw]) => {
+    void (async () => {
+      try {
+        const [paxgRaw, xautRaw, btcRaw, ethRaw] = await Promise.all(
+          ids.map((id) => getMarketChartSeries(id, days, interval, { signal: controller.signal, apiKey })),
+        );
+
         if (controller.signal.aborted) return;
 
         // Downsample long series for perf (daily already for 30d+)
@@ -128,8 +130,10 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
 
         // Rolling corrs for the "shifts over time" chart (window ~10% of series or 20-30 pts)
         const rollWin = Math.max(10, Math.floor(n / 10));
-        const paxgGoldRoll = rollingCorrelations(gold, paxgAligned, rollWin);
-        const paxgBtcRoll = rollingCorrelations(btcAligned, paxgAligned, rollWin);
+        const [paxgGoldRoll, paxgBtcRoll] = await Promise.all([
+          rollingCorrelationsAsync({ seriesA: gold, seriesB: paxgAligned, window: rollWin }),
+          rollingCorrelationsAsync({ seriesA: btcAligned, seriesB: paxgAligned, window: rollWin }),
+        ]);
 
         // Build time labels for rolling (approximate daily labels from end)
         const rollLen = paxgGoldRoll.length;
@@ -157,21 +161,20 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
 
         setResult(finalResult);
         setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (controller.signal.aborted) return;
-        // Total fallback path
         const fb = makeFallbackResult(
           horizon,
           sparklinePrices(prices['pax-gold']?.sparkline ?? [], 60),
           sparklinePrices(prices['tether-gold']?.sparkline ?? [], 60),
           endSpot,
-          ['API error — using sparkline + synthetic spot only']
+          ['API error — using sparkline + synthetic spot only'],
         );
         setResult(fb);
         setError(err instanceof Error ? err.message : 'Failed to load structural data');
         setLoading(false);
-      });
+      }
+    })();
 
     return () => controller.abort();
   }, [horizon, days, interval, endSpot, prices, goldSpot?.price]);

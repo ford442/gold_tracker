@@ -36,7 +36,7 @@ export function generateSyntheticSpotPrices(
   drift = 0.00008
 ): number[] {
   if (n < 1) return [endPrice];
-  const prices: number[] = new Array(n);
+  const prices: number[] = Array.from({ length: n }, () => 0);
   let p = endPrice;
   // Walk backward from end so final price is exact
   for (let i = n - 1; i >= 0; i--) {
@@ -267,7 +267,7 @@ export function computeFidelityScores(
       xaut: zero,
       longCorrelations: {
         assets: ['Gold', 'PAXG', 'XAUT', 'BTC', 'ETH'],
-        matrix: Array.from({ length: 5 }, () => Array(5).fill(0)),
+        matrix: Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 0)),
       },
     };
   }

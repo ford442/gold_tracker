@@ -60,6 +60,7 @@ supabase link --project-ref your-project-ref
 supabase functions deploy store-key
 supabase functions deploy place-trade
 supabase functions deploy test-connection
+supabase functions deploy fetch-news
 ```
 
 ### 5. Configure Frontend
@@ -88,6 +89,21 @@ Encrypts and stores Coinbase CDP keys in the database.
 Tests if stored keys can connect to Coinbase API.
 
 **POST** `/functions/v1/test-connection`
+
+### `fetch-news`
+Fetches gold-related RSS feeds server-side (Kitco + MINING.com), parses and caches results.
+
+**GET/POST** `/functions/v1/fetch-news` (public — anon key only, no JWT required)
+
+Response:
+```json
+{
+  "items": [{ "id": "...", "title": "...", "url": "...", "source": "Kitco", "publishedAt": "...", "snippet": "..." }],
+  "fetchedAt": "2025-07-21T10:00:00.000Z",
+  "sources": ["Kitco", "MINING.com"],
+  "cached": false
+}
+```
 
 ### `place-trade`
 Executes a trade using stored keys.
@@ -122,3 +138,25 @@ You have two options for storing Coinbase keys:
 - Recommended for production
 
 To use server-side storage, call the Edge Functions from your frontend after user authentication.
+
+## Exchange registry sync
+
+Venue metadata (supported pairs, Kraken native symbols, fees, `directPaxgXaut`, capabilities) has **one source of truth**:
+
+| Artifact | Role |
+|----------|------|
+| [`shared/exchanges.json`](../shared/exchanges.json) | Canonical editable venue data |
+| [`shared/registry.ts`](../shared/registry.ts) | Pure helpers (`supportsPair`, `resolveVenuePair`, fee math) |
+| [`src/lib/exchanges.ts`](../src/lib/exchanges.ts) | Client facade (re-exports shared registry) |
+| [`functions/_shared/registry.ts`](functions/_shared/registry.ts) | Edge Function re-export for Supabase deploy bundling |
+
+**Do not** add local `PAIR_MAP` copies or hard-coded exchange allowlists in Edge Functions. Import from `../_shared/registry.ts` instead.
+
+### Adding a new venue
+
+1. Add an entry to [`shared/exchanges.json`](../shared/exchanges.json) (`supportedPairs`, `venuePairIds`, fees, flags, `keyFields`).
+2. Implement the adapter in [`src/lib/exchangeAdapters.ts`](../src/lib/exchangeAdapters.ts).
+3. Add auth/routing branches in `place-trade` and `test-connection` Edge Functions.
+4. Run `npm test` — integrity tests in [`shared/registry.test.ts`](../shared/registry.test.ts) guard pair-map completeness and live-tradable venue sets.
+
+Auto-deploying a new venue still requires manual adapter and Edge auth work; this registry only keeps metadata in sync between client and server.
