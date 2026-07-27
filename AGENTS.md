@@ -13,7 +13,10 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 - Arbitrage alerts for PAXG/XAUT spread opportunities
 - Portfolio tracker with unrealized P&L, gold exposure %, crypto beta %, and Coinbase balance sync
 - Trade suggestions based on market conditions
-- Gold news feed (mock data — RSS fetching disabled due to CORS reliability issues; live proxy tracked in [#52](https://github.com/ford442/gold_tracker/issues/52))
+- Gold news feed via Supabase `fetch-news` Edge Function (`newsService.ts`); mock fallback when Supabase is unconfigured or offline
+- **WebSocket price transport** with REST polling fallback (Settings → Data Feed: auto / poll / stream)
+- **Client order journal** with reconciliation, cancel, and `OrderHistoryPanel` (`orderLifecycle.ts`, `orderStore`, `executeOrderWithLifecycle`)
+- **Pre-trade risk engine** — kill switch, exposure limits, daily-loss guardrails (`riskEngine.ts`, Settings)
 - Dark/Light mode with localStorage persistence
 - **Coinbase trading integration** with CDP API keys
 - **Kraken trading integration** with direct PAXG/XAUT pair support
@@ -44,7 +47,7 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 |-----|---------|----------|
 | CoinGecko | Crypto prices (PAXG, XAUT, BTC, ETH, BCH) + historical market charts | Mock data |
 | MetalPrice | Spot gold prices | Mock data |
-| Kitco RSS | Gold-related news | Mock news (RSS disabled due to CORS proxy reliability) |
+| Kitco RSS (via Edge) | Gold-related news | `fetch-news` Edge Function; mock news when Supabase absent |
 | Coinbase (CDP) | Trading execution + account balances | N/A |
 | Kraken | Trading execution (direct PAXG/XAUT pair) | N/A |
 
@@ -83,7 +86,8 @@ goldtracker/
 │   │   ├── PaperLedgerPanel.tsx    # Paper-trade ledger: summary, realized-P&L curve, fills, CSV export, reset
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
 │   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution (uses tradeSuggestions/ folder)
-│   │   ├── NewsFeed.tsx            # News display (mock data)
+│   │   ├── NewsFeed.tsx            # News display (live via fetch-news or mock fallback)
+│   │   ├── OrderHistoryPanel.tsx   # Order journal: status, cancel, reconcile hints
 │   │   ├── SettingsModal.tsx       # Trading settings + auth modal (uses settings/ folder)
 │   │   ├── DarkModeToggle.tsx      # Theme switcher
 │   │   ├── StrategyDashboard.tsx   # Backtest + Scenario Lab (uses strategy/ folder)
@@ -103,12 +107,12 @@ goldtracker/
 │   │   ├── alerts/                 # AlertRuleForm, AlertRulesManager
 │   │   ├── goldComparison/         # 5-tab sub-components (Overlay/Premiums/Currencies/Portfolio + constants/helpers)
 │   │   ├── portfolio/              # Portfolio table/summary/entry-form sub-components + portfolioUtils
-│   │   ├── settings/               # Auth, ExchangeKeys, DryRun, SecurityWarnings panels
+│   │   ├── settings/               # Auth, ExchangeKeys, DryRun, Risk, DataFeed, SecurityWarnings panels
 │   │   ├── strategy/               # Backtest config, Scenario Lab, equity curve, trade log sub-components
 │   │   ├── tradeReplay/            # Replay chart, projection controls, replay data/hooks
 │   │   └── tradeSuggestions/       # Suggestion cards, execute controls, useTradeExecution
 │   ├── hooks/               # Custom React hooks
-│   │   ├── useGoldPrices.ts        # Price polling (60s interval)
+│   │   ├── useGoldPrices.ts        # Price transport (REST 60s + optional WebSocket stream)
 │   │   ├── useAppSection.ts        # Active section state (hash-synced)
 │   │   ├── useTradeSuggestions.ts  # Trading signal generation
 │   │   ├── useCorrelations.ts      # Correlation calculations (short-term tactical on sparklines)
@@ -117,7 +121,10 @@ goldtracker/
 │   │   ├── useStrategyBacktest.ts  # Runs the pure strategyEngine for the dashboard
 │   │   ├── useAlertRules.ts        # Configurable alert-rule evaluation
 │   │   ├── useConnectivityStatus.ts # Online/offline detection for OfflineBanner
-│   │   ├── useNews.ts              # News fetching (5 min, mock)
+│   │   ├── useNews.ts              # News fetching (5 min; fetch-news or mock)
+│   │   ├── useOrderReconciliation.ts # Poll non-terminal orders after tab sleep / outages
+│   │   ├── useRiskContext.ts       # Pre-trade risk checks + portfolio price map for execution UIs
+│   │   ├── useVenueQuotes.ts       # Cross-venue PAXG/XAUT snapshots for global arb monitor
 │   │   └── useCoinbaseBalances.ts  # Coinbase account balance polling (60s)
 │   ├── store/               # Zustand state stores
 │   │   ├── priceStore.ts           # Price data state (single source of truth)
@@ -128,9 +135,13 @@ goldtracker/
 │   │   ├── alertRulesStore.ts      # User-configured alert rules (persisted)
 │   │   ├── strategyStore.ts        # Strategy backtest config + results (persisted)
 │   │   ├── paperTradeStore.ts      # Paper-trade ledger fills (persisted; append + reset only)
+│   │   ├── orderStore.ts           # Order journal (persisted client-side; append + reconcile)
 │   │   └── useAuthStore.ts         # Supabase auth state
 │   ├── services/            # API service layer
-│   │   └── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
+│   │   ├── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
+│   │   └── newsService.ts          # fetch-news Edge Function invoke + mock fallback
+│   ├── workers/             # Web Worker bundles (built by Vite)
+│   │   └── analyticsWorker.ts      # Off-thread backtests + rolling correlations
 │   ├── types/               # TypeScript definitions
 │   │   ├── index.ts                # Core types (PriceData, GoldSpot, MetalSpot, PortfolioEntry, AlertItem, NewsItem, ThemeMode, Chart types)
 │   │   └── TradeSuggestion.ts      # Trade suggestion types
@@ -150,8 +161,14 @@ goldtracker/
 │   │   ├── priceSnapshot.ts        # Offline price snapshot persistence (PWA)
 │   │   ├── appSections.ts          # Section registry (ids, labels, shortcuts, nav helpers)
 │   │   ├── lazyNamed.ts            # Named-export React.lazy helper
-│   │   ├── exchanges.ts            # PURE venue registry: fees, pairs, auth, capabilities (single source of truth)
+│   │   ├── exchanges.ts            # Vite facade over shared/exchanges.json (fees, pairs, auth, capabilities)
 │   │   ├── exchangeAdapters.ts     # ExchangeAdapter interface wrapping Coinbase/Kraken (balances/placeOrder/fees/pairs)
+│   │   ├── executeOrder.ts         # executeOrderWithLifecycle — risk gate + adapter + journal writes
+│   │   ├── orderLifecycle.ts       # Pure order state machine, reconciliation helpers
+│   │   ├── riskEngine.ts           # Pre-trade limits, kill switch, portfolio metrics
+│   │   ├── priceTransport.ts       # Poll + WebSocket transport with auto fallback
+│   │   ├── venueQuoteFanout.ts     # Parallel cross-venue quote fetch for arb monitor
+│   │   ├── workerClient.ts         # analyticsWorker RPC + main-thread fallback
 │   │   ├── supabase.ts             # Supabase client with graceful mock fallback
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
@@ -159,11 +176,16 @@ goldtracker/
 │   ├── App.tsx              # Section shell + keyboard shortcuts
 │   ├── main.tsx             # Entry point (StrictMode)
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
+├── shared/                  # Canonical exchange registry (Vite + Deno)
+│   ├── exchanges.json              # Venue metadata (fees, pairs, capabilities)
+│   └── registry.ts                 # Pure helpers; unit-tested
 ├── supabase/                # Supabase backend
 │   ├── functions/           # Edge Functions
 │   │   ├── store-key/index.ts      # Encrypt & store exchange API keys (AES-GCM)
 │   │   ├── place-trade/index.ts    # Execute trades on Coinbase/Kraken (jose library)
-│   │   └── test-connection/index.ts # Test exchange connectivity
+│   │   ├── fetch-news/index.ts     # Server-side RSS aggregation for Markets news
+│   │   ├── test-connection/index.ts # Test exchange connectivity
+│   │   └── _shared/registry.ts     # Re-export of shared/registry.ts for Deno
 │   ├── schema.sql           # Database schema (user_exchange_keys, trade_logs, RLS policies)
 │   ├── DEPLOY.md            # Deployment guide
 │   └── README.md            # Backend documentation
@@ -353,10 +375,15 @@ export const useStore = create<StoreState>()(
 
 ### Data Refresh Intervals
 
-- **Prices**: 60 seconds (`POLL_INTERVAL` in `useGoldPrices.ts`); WebSocket transport tracked in [#48](https://github.com/ford442/gold_tracker/issues/48)
-- **News**: 5 minutes (mock data only; live RSS proxy tracked in [#52](https://github.com/ford442/gold_tracker/issues/52))
+- **Prices**: configurable transport via `settingsStore.priceTransportMode`:
+  - `auto` — public Coinbase + Kraken WebSockets with 60s REST fallback (`priceTransport.ts`)
+  - `poll` — REST only, 60s (`POLL_INTERVAL` in `useGoldPrices.ts`)
+  - `stream` — WebSockets for crypto; metals stay on 60s REST
+- **News**: 5 minutes via `useNews` → `newsService.fetchLiveNews` (live when Supabase `fetch-news` is deployed; mock or last-good cache otherwise)
+- **Venue quotes (arb monitor)**: on-demand fanout per `useVenueQuotes` refresh (not the dashboard 60s poll)
 - **Arbitrage alerts**: Debounced to once per 5 minutes per pair
 - **Coinbase balances**: 60 seconds when sync enabled (`useCoinbaseBalances.ts`)
+- **Order reconciliation**: background poll for non-terminal journal rows (`useOrderReconciliation` in `App.tsx`)
 
 ### API Key Configuration
 
@@ -594,7 +621,9 @@ Component-level tests are still out of scope; for other UI checks:
 
 ## Notes for Agents
 
-- **Shipped vs open (check `main`).** GitHub issue state ≠ ship status. Several issues ([#28](https://github.com/ford442/gold_tracker/issues/28), [#38](https://github.com/ford442/gold_tracker/issues/38), [#46](https://github.com/ford442/gold_tracker/issues/46)–[#50](https://github.com/ford442/gold_tracker/issues/50)) were closed before full acceptance criteria merged. Use [docs/ROADMAP.md](docs/ROADMAP.md) and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) Done/Remaining lists — verify with `git ls-tree origin/main -- <path>` before assuming a module exists.
+> **Truth protocol.** GitHub **closed ≠ shipped**. Before assuming a module exists: (1) `git ls-tree origin/main -- <path>`, (2) confirm hook/UI imports (grep from `src/hooks/` or `src/components/`), (3) update [docs/SHIPPED.md](docs/SHIPPED.md) + `code_plan.md` Done/Remaining in the same PR. See [code_plan.md § Truth protocol](code_plan.md#truth-protocol-for-agents).
+
+- **Shipped vs open (check `main`).** Foundation issues ([#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54)) are largely **implemented on `main`** even when GitHub shows zero open issues. Use [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/SHIPPED.md), and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) — not issue state alone. Verified gaps today: observability ([#49](https://github.com/ford442/gold_tracker/issues/49)), server-durable order journal, Gemini trading, real-tick backtests, `lint:strict` CI.
 - Always maintain the existing dark-first theming approach
 - When adding new stores, use the persist middleware for data that should survive page reloads
 - Mock data is provided for all API calls to ensure the app works without API keys
@@ -604,11 +633,11 @@ Component-level tests are still out of scope; for other UI checks:
 - When working with Supabase Edge Functions, use the `jose` library for JWT signing (already configured)
 - Always handle both local and server-secure modes in trading-related components
 - Always handle both Coinbase and Kraken exchanges where applicable
-- **Exchange registry.** `lib/exchanges.ts` (pure, unit-tested, in the coverage gate) is the single source of truth for venue metadata — taker fees, supported pairs, auth method, the direct-PAXG/XAUT flag, and capability flags. To add a venue, add an entry there; the Settings selector, fee table, and fee math all read from it. Shared client+Edge registry tracked in [#45](https://github.com/ford442/gold_tracker/issues/45). Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through the `ExchangeAdapter` interface in `lib/exchangeAdapters.ts` (balances/placeOrder/fees/pairs), which wraps the existing Coinbase/Kraken clients — depend on the adapter, not on venue-specific functions. `settingsStore.Exchange` is typed from the registry's `LiveTradingExchangeId`.
+- **Exchange registry.** Canonical venue data lives in `shared/exchanges.json` + `shared/registry.ts` (unit-tested). `lib/exchanges.ts` is the Vite facade; Edge Functions import `supabase/functions/_shared/registry.ts` (re-export). To add a venue, edit `shared/exchanges.json` first. Fees must not be re-hardcoded — `strategyEngine` cost presets, `krakenApi` savings, and `paperTrade` fees all derive from `takerFeeBps`/`roundTripPaxgXautFeeBps`. Network execution goes through `executeOrderWithLifecycle` → `ExchangeAdapter` in `lib/exchangeAdapters.ts` — UI must not import `coinbaseTrader` directly. `settingsStore.Exchange` is typed from `LiveTradingExchangeId`. Gemini is quote-only (`canTrade: false`) until an adapter ships.
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
-- RSS news fetching is disabled; `fetchGoldNews()` returns mock data ([#52](https://github.com/ford442/gold_tracker/issues/52) tracks server-side proxy)
-- **Paper trading = dry-run.** When `dryRun` is on, `useTradeExecution` records a simulated fill (pure `buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` and never calls an exchange API — so practice needs no keys and can never place a live order. Every fill is stamped `mode: 'paper'`; the store only appends or resets. Keep the LIVE (🚀) vs PAPER (🧪) distinction explicit in any trading UI. Realized/unrealized P&L, the equity curve, and CSV export all come from pure `lib/paperTrade.ts` — extend there first (it is unit-tested and in the coverage gate).
+- **News path.** `useNews` → `services/newsService.fetchLiveNews` invokes the `fetch-news` Edge Function when Supabase is configured; otherwise mock/demo items (legacy `api.fetchGoldNews` delegates here). `NewsFeed` shows source badges and mock indicator.
+- **Paper / dry-run / live journal.** When `dryRun` is on, `executeOrderWithLifecycle` records a simulated fill (`buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` **and** a journal row in `orderStore` (`mode: 'paper'`). Live orders (`dryRun` off) pass `riskEngine` checks first, route through adapters or Edge, and append to the same client journal. Reconciliation runs from `App.tsx` via `useOrderReconciliation`. Keep LIVE (🚀) vs PAPER (🧪) explicit in trading UI. Journal is **browser-local** today — not server-durable. Paper P&L / equity curve / CSV export come from `lib/paperTrade.ts`.
 - All chart components use Recharts with `isAnimationActive={false}` for performance
 - **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal, apiKey })`. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
