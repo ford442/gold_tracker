@@ -62,5 +62,37 @@ export function createMockSupabaseClient(): AppSupabaseClient {
     functions: {
       invoke: async <T = unknown>(): Promise<FunctionsInvokeResult<T>> => functionsDisabledResult<T>(),
     },
+    from: <T = unknown>(_table: string) => ({
+      select: (_columns?: string) => ({
+        eq: (_column: string, _value: unknown) => ({
+          order: (_col: string, _options?: { ascending?: boolean }) => ({
+            limit: async (_count: number) => ({ data: [] as T[], error: null }),
+          }),
+        }),
+        order: (_col: string, _options?: { ascending?: boolean }) => ({
+          limit: async (_count: number) => ({ data: [] as T[], error: null }),
+        }),
+      }),
+      upsert: async (_values: unknown, _options?: { onConflict?: string; ignoreDuplicates?: boolean }) => ({
+        data: null as T | null,
+        error: null,
+      }),
+      insert: async (_values: unknown) => ({
+        data: null as T | null,
+        error: null,
+      }),
+      update: (_values: unknown) => {
+        const updatePromise = Promise.resolve({ data: null as T | null, error: null });
+        return {
+          eq: (_column: string, _value: unknown) => ({
+            ...updatePromise,
+            eq: async (_col2: string, _val2: unknown) => ({ data: null as T | null, error: null }),
+            then: updatePromise.then.bind(updatePromise),
+            catch: updatePromise.catch.bind(updatePromise),
+            finally: updatePromise.finally.bind(updatePromise),
+          }),
+        };
+      },
+    }),
   };
 }

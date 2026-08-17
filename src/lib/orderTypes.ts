@@ -57,6 +57,25 @@ export function buildMarketIocOrder(
   };
 }
 
+/** Build a limit GTC order. */
+export function buildLimitGtcOrder(
+  productId: string,
+  side: 'BUY' | 'SELL',
+  baseSize: number | string,
+  limitPrice: number | string,
+): TradeOrder {
+  return {
+    product_id: productId,
+    side,
+    order_configuration: {
+      limit_limit_gtc: {
+        base_size: String(baseSize),
+        limit_price: String(limitPrice),
+      },
+    },
+  };
+}
+
 /**
  * Resolve a PAXG↔XAUT arb order for a venue.
  * Kraken: direct PAXG-XAUT pair; Coinbase: buy cheaper token via USD leg.

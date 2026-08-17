@@ -1,4 +1,3 @@
-import { useSettingsStore } from '@/store/settingsStore';
 import type { TradeOrder, OrderResult, OrderStatusResult, CancelOrderResult } from './orderTypes';
 import {
   parseCoinbaseApiErrorBody,
@@ -21,14 +20,14 @@ function mapCoinbaseStatus(status: string): OrderStatusResult['status'] {
 export async function getCoinbaseOrderStatus(
   orderId: string,
   _productId: string,
-  creds: { cdpKeyName?: string; cdpPrivateKey?: string },
+  creds?: { cdpKeyName?: string; cdpPrivateKey?: string },
 ): Promise<OrderStatusResult> {
   if (orderId.startsWith('dry-run-') || orderId.startsWith('paper-')) {
     return { status: 'filled', venueOrderId: orderId, filledQty: 0 };
   }
 
-  const cdpKeyName = creds.cdpKeyName ?? useSettingsStore.getState().cdpKeyName;
-  const cdpPrivateKey = creds.cdpPrivateKey ?? useSettingsStore.getState().cdpPrivateKey;
+  const cdpKeyName = creds?.cdpKeyName;
+  const cdpPrivateKey = creds?.cdpPrivateKey;
   if (!cdpKeyName || !cdpPrivateKey) {
     return { status: 'unknown', error: 'Coinbase CDP keys not configured' };
   }
@@ -66,14 +65,14 @@ export async function getCoinbaseOrderStatus(
 export async function cancelCoinbaseOrder(
   orderId: string,
   _productId: string,
-  creds: { cdpKeyName?: string; cdpPrivateKey?: string },
+  creds?: { cdpKeyName?: string; cdpPrivateKey?: string },
 ): Promise<CancelOrderResult> {
   if (orderId.startsWith('dry-run-') || orderId.startsWith('paper-')) {
     return { success: true };
   }
 
-  const cdpKeyName = creds.cdpKeyName ?? useSettingsStore.getState().cdpKeyName;
-  const cdpPrivateKey = creds.cdpPrivateKey ?? useSettingsStore.getState().cdpPrivateKey;
+  const cdpKeyName = creds?.cdpKeyName;
+  const cdpPrivateKey = creds?.cdpPrivateKey;
   if (!cdpKeyName || !cdpPrivateKey) {
     return { success: false, error: 'Coinbase CDP keys not configured' };
   }
@@ -162,16 +161,20 @@ async function createJWT(keyName: string, privateKeyPem: string, method: string,
   return `${btoa(JSON.stringify(header))}.${btoa(JSON.stringify(payload))}.${sigBase64}`;
 }
 
-export async function placeOrder(order: TradeOrder, dryRun = true): Promise<OrderResult> {
-  const { cdpKeyName, cdpPrivateKey } = useSettingsStore.getState();
+export async function placeOrder(
+  order: TradeOrder,
+  dryRun = true,
+  creds?: { cdpKeyName?: string; cdpPrivateKey?: string },
+): Promise<OrderResult> {
+  if (dryRun) {
+    return { success: true, order_id: 'dry-run-' + Date.now() };
+  }
+
+  const cdpKeyName = creds?.cdpKeyName;
+  const cdpPrivateKey = creds?.cdpPrivateKey;
 
   if (!cdpKeyName || !cdpPrivateKey) {
     throw new Error('Coinbase CDP keys not configured');
-  }
-
-  if (dryRun) {
-    console.log('🔒 DRY RUN — would have placed order:', order);
-    return { success: true, order_id: 'dry-run-' + Date.now() };
   }
 
   const path = '/api/v3/brokerage/orders';
@@ -216,10 +219,4 @@ export async function testCoinbaseConnection(creds: {
   } catch {
     return false;
   }
-}
-
-/** @deprecated Use adapter.testConnection or testCoinbaseConnection with explicit creds */
-export async function testConnection(): Promise<boolean> {
-  const { cdpKeyName, cdpPrivateKey } = useSettingsStore.getState();
-  return testCoinbaseConnection({ cdpKeyName, cdpPrivateKey });
 }

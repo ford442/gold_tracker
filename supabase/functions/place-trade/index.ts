@@ -98,6 +98,32 @@ serve(async (req: Request) => {
     const status = exchange === 'kraken'
       ? await getKrakenOrderStatus(orderId, decrypted.krakenApiKey, decrypted.krakenApiSecret)
       : await getCoinbaseOrderStatus(orderId, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
+
+    try {
+      if (status.status && status.status !== 'unknown') {
+        const updatePayload: Record<string, unknown> = {
+          state: status.status,
+          updated_at: new Date().toISOString(),
+        }
+        if (status.filledQty !== undefined) updatePayload.filled_qty = status.filledQty
+        if (status.avgFillPrice !== undefined) updatePayload.avg_fill_price = status.avgFillPrice
+        if (status.feeUsd !== undefined) updatePayload.fee_usd = status.feeUsd
+        if (status.error) updatePayload.error = status.error
+        if (status.status === 'needs_attention') {
+          updatePayload.needs_attention = true
+          updatePayload.attention_reason = status.error || 'Reconciliation poll flagged attention'
+        }
+
+        await supabase
+          .from('order_journal')
+          .update(updatePayload)
+          .eq('user_id', user.id)
+          .eq('venue_order_id', orderId)
+      }
+    } catch (journalErr) {
+      console.error('[place-trade] Failed updating order_journal on status poll:', journalErr)
+    }
+
     return new Response(JSON.stringify(status), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -107,6 +133,23 @@ serve(async (req: Request) => {
     const cancel = exchange === 'kraken'
       ? await cancelKrakenOrder(orderId, decrypted.krakenApiKey, decrypted.krakenApiSecret)
       : await cancelCoinbaseOrder(orderId, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
+
+    try {
+      if (cancel.success) {
+        await supabase
+          .from('order_journal')
+          .update({
+            state: 'cancelled',
+            needs_attention: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+          .eq('venue_order_id', orderId)
+      }
+    } catch (journalErr) {
+      console.error('[place-trade] Failed updating order_journal on cancel:', journalErr)
+    }
+
     return new Response(JSON.stringify(cancel), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -135,6 +178,16 @@ serve(async (req: Request) => {
     )
   }
 
+  const clientOrderId = body.clientOrderId || body.client_order_id || `gt-${Date.now()}-1`
+  const requestedQty = parseFloat(
+    order?.order_configuration?.market_market_ioc?.base_size ||
+    order?.order_configuration?.limit_limit_gtc?.base_size ||
+    '0'
+  ) || 0
+  const source = body.source || 'manual'
+  const idempotencyKey = body.idempotencyKey || body.idempotency_key || `${exchange}:${order?.product_id}:${order?.side}:${source}:${requestedQty}`
+  const nowIso = new Date().toISOString()
+
   let result
   if (dryRun) {
     result = {
@@ -147,11 +200,59 @@ serve(async (req: Request) => {
         pair: orderProductId ? resolveVenuePair(exchange, orderProductId) : order?.product_id,
       }
     }
+
+    try {
+      await supabase.from('order_journal').upsert({
+        user_id: user.id,
+        client_order_id: clientOrderId,
+        venue_order_id: result.order_id,
+        exchange,
+        mode: 'paper',
+        state: 'filled',
+        product_id: orderProductId || order?.product_id || 'UNKNOWN',
+        side: order?.side || 'BUY',
+        requested_qty: requestedQty,
+        filled_qty: requestedQty,
+        avg_fill_price: null,
+        fee_usd: 0,
+        idempotency_key: idempotencyKey,
+        source,
+        submitted_at: nowIso,
+        created_at: nowIso,
+        updated_at: nowIso,
+      }, { onConflict: 'user_id,client_order_id' })
+    } catch (journalErr) {
+      console.error('[place-trade] Failed upserting paper order_journal:', journalErr)
+    }
   } else {
     result = exchange === 'kraken'
       ? await placeKrakenOrder(order, decrypted.krakenApiKey, decrypted.krakenApiSecret)
       : await placeCoinbaseOrder(order, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
     result.exchange = exchange
+
+    try {
+      await supabase.from('order_journal').upsert({
+        user_id: user.id,
+        client_order_id: clientOrderId,
+        venue_order_id: result.success ? result.order_id : null,
+        exchange,
+        mode: 'live',
+        state: result.success ? 'submitted' : 'failed',
+        product_id: orderProductId || order?.product_id || 'UNKNOWN',
+        side: order?.side || 'BUY',
+        requested_qty: requestedQty,
+        filled_qty: 0,
+        fee_usd: 0,
+        error: result.success ? null : (result.error || 'Order placement failed'),
+        idempotency_key: idempotencyKey,
+        source,
+        submitted_at: result.success ? nowIso : null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      }, { onConflict: 'user_id,client_order_id' })
+    } catch (journalErr) {
+      console.error('[place-trade] Failed upserting live order_journal:', journalErr)
+    }
   }
 
   return new Response(JSON.stringify(result), {

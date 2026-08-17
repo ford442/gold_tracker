@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useOrderStore } from '@/store/orderStore';
+import { useOrderExecution } from '@/hooks/useOrderExecution';
 import {
   detectStaleSubmitted,
   mergePollResult,
   pollSnapshotFromStatus,
   needsReconciliation,
 } from '@lib/orderLifecycle';
-import { pollOrderStatus } from '@lib/executeOrder';
 
 const RECONCILE_INTERVAL_MS = 15_000;
 
@@ -16,9 +15,8 @@ const RECONCILE_INTERVAL_MS = 15_000;
  * Runs on an interval while any order needs reconciliation (tab sleep recovery).
  */
 export function useOrderReconciliation() {
-  const { user } = useAuthStore();
   const orders = useOrderStore((s) => s.orders);
-  const upsertOrder = useOrderStore((s) => s.upsertOrder);
+  const { pollStatus, notifyJournal } = useOrderExecution();
   const pollingRef = useRef(false);
 
   const nonTerminal = orders.filter((o) => needsReconciliation(o.state));
@@ -35,18 +33,18 @@ export function useOrderReconciliation() {
         for (const order of nonTerminal) {
           const stale = detectStaleSubmitted(order, now);
           if (stale && stale.state === 'needs_attention') {
-            upsertOrder(stale);
+            notifyJournal(stale);
             continue;
           }
 
           if (!order.venueOrderId || order.mode === 'paper') continue;
 
           try {
-            const status = await pollOrderStatus(order, user);
+            const status = await pollStatus(order);
             const snapshot = pollSnapshotFromStatus(status, order);
             const merged = mergePollResult(order, snapshot);
             if (merged.updatedAt !== order.updatedAt || merged.state !== order.state) {
-              upsertOrder(merged);
+              notifyJournal(merged);
             }
           } catch {
             const merged = mergePollResult(order, {
@@ -54,7 +52,7 @@ export function useOrderReconciliation() {
               pollFailed: true,
               attentionReason: 'Reconciliation poll failed — check connection',
             });
-            upsertOrder(merged);
+            notifyJournal(merged);
           }
         }
       } finally {
@@ -65,5 +63,5 @@ export function useOrderReconciliation() {
     void reconcile();
     const id = window.setInterval(() => void reconcile(), RECONCILE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [nonTerminal, user, upsertOrder]);
+  }, [nonTerminal, pollStatus, notifyJournal]);
 }

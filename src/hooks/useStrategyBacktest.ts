@@ -10,6 +10,7 @@ import {
 import { runBacktestAsync } from '@lib/workerClient';
 import type { StrategyPayload } from '@lib/analyticsWorkerProtocol';
 import { generateMockTicks } from '@lib/strategyMockTicks';
+import { fetchHistoricalBacktestTicks } from '@lib/historicalTicks';
 import { formatPercent, formatPrice } from '@lib/utils';
 import { useStrategyStore } from '@/store/strategyStore';
 import { usePortfolioStore } from '@/store/portfolioStore';
@@ -46,6 +47,12 @@ export function useStrategyBacktest() {
     arbRegimeGateEnabled,
     regimeGateConfig,
     setRegimeGateConfig,
+    tickSource,
+    setTickSource,
+    historicalRange,
+    setHistoricalRange,
+    historicalFallbackNotice,
+    setHistoricalFallbackNotice,
   } = useStrategyStore();
 
   const { entries: portfolioEntries } = usePortfolioStore();
@@ -99,7 +106,29 @@ export function useStrategyBacktest() {
 
     try {
       if (!isLab) {
-        let ticks = generateMockTicks(strategyType, mrAsset);
+        let ticks: BacktestTick[];
+        if (tickSource === 'historical') {
+          const fetchRes = await fetchHistoricalBacktestTicks({
+            range: historicalRange,
+            strategyType,
+            arbAssets: [arbAsset1, arbAsset2],
+            mrAsset,
+            apiKey: import.meta.env.VITE_COINGECKO_API_KEY as string | undefined,
+          });
+          ticks = fetchRes.ticks;
+          if (fetchRes.isMock || fetchRes.source === 'synthetic_fallback') {
+            setHistoricalFallbackNotice(
+              fetchRes.error || 'Using synthetic data (CoinGecko unavailable or rate-limited)',
+            );
+            toast('Historical data unavailable — fell back to synthetic ticks', { icon: '⚠️' });
+          } else {
+            setHistoricalFallbackNotice(null);
+          }
+        } else {
+          ticks = generateMockTicks(strategyType, mrAsset);
+          setHistoricalFallbackNotice(null);
+        }
+
         const liveRegime = fidelitySnapshot
           ? { paxg: fidelitySnapshot.paxg, xaut: fidelitySnapshot.xaut }
           : undefined;
@@ -139,32 +168,36 @@ export function useStrategyBacktest() {
         });
         setLastResult(result);
         const feeNote = result.totalFeesUsd > 0 ? `, fees ${formatPrice(result.totalFeesUsd)}` : '';
-        toast.success(`Backtest complete — ${result.totalTrades} trades, ${formatPercent(result.totalReturn)} net return${feeNote}`, { duration: 4000 });
+        const sourceLabel = tickSource === 'historical' && !historicalFallbackNotice ? ` (${historicalRange} real)` : ' (synthetic)';
+        toast.success(`Backtest complete${sourceLabel} — ${result.totalTrades} trades, ${formatPercent(result.totalReturn)} net return${feeNote}`, { duration: 4000 });
       } else {
-        let baseTicks: BacktestTick[] = generateBaseScenarioTicks(720);
+        let baseTicks: BacktestTick[];
 
-        const useHistorical = selectedScenario !== 'custom' || Object.keys(customShocks).length > 0;
-        if (useHistorical) {
-          const ids = ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'];
-          const series: Record<string, number[]> = {};
-          let minLen = 720;
-          ids.forEach((id) => {
-            const sp = priceMap[id]?.sparkline?.map((p) => p.price) ?? [];
-            series[id] = sp.length ? sp : Array.from({ length: 60 }, (_, i) => (baseTicks[0]?.prices[id] || 1000) * (0.99 + 0.02 * (i % 5)));
-            minLen = Math.min(minLen, series[id].length);
+        if (tickSource === 'historical') {
+          const fetchRes = await fetchHistoricalBacktestTicks({
+            range: historicalRange,
+            strategyType: 'arbitrage',
+            scenarioLabAssets: ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'],
+            apiKey: import.meta.env.VITE_COINGECKO_API_KEY as string | undefined,
           });
-          const goldBase = baseTicks[0]?.prices.gold || goldPrice || 3290;
-          const synthGold = Array.from({ length: minLen }, (_, i) => goldBase * (0.995 + 0.01 * Math.sin(i / 4)));
-          baseTicks = Array.from({ length: minLen }, (_, i) => ({
-            timestamp: Date.now() - (minLen - i) * 3600000,
+          if (fetchRes.isMock || fetchRes.source === 'synthetic_fallback') {
+            setHistoricalFallbackNotice(
+              fetchRes.error || 'Using synthetic base scenario ticks (CoinGecko unavailable)',
+            );
+          } else {
+            setHistoricalFallbackNotice(null);
+          }
+          const goldBase = goldPrice || 3290;
+          baseTicks = fetchRes.ticks.map((t) => ({
+            ...t,
             prices: {
-              'pax-gold': series['pax-gold'][i] || baseTicks[i % baseTicks.length].prices['pax-gold'],
-              'tether-gold': series['tether-gold'][i] || baseTicks[i % baseTicks.length].prices['tether-gold'],
-              bitcoin: series['bitcoin'][i] || baseTicks[i % baseTicks.length].prices.bitcoin,
-              ethereum: series['ethereum'][i] || baseTicks[i % baseTicks.length].prices.ethereum,
-              gold: synthGold[i],
+              ...t.prices,
+              gold: t.prices['pax-gold'] || goldBase,
             },
           }));
+        } else {
+          baseTicks = generateBaseScenarioTicks(720);
+          setHistoricalFallbackNotice(null);
         }
 
         const shocks = selectedScenario === 'custom' ? customShocks : (currentScenario?.shocks ?? customShocks);
@@ -221,8 +254,9 @@ export function useStrategyBacktest() {
     mrAsset, mrWindowSize, mrBuyThreshold, mrSellThreshold, mrTradeSize, mrStopLoss,
     initialBalance, setLastResult, setIsRunning, setLastScenarioResult,
     selectedScenario, customShocks, currentScenario, extraCashUsd, seedFromPortfolio,
-    portfolioSnapshot, dcaUsdPerPeriod, dcaPeriodCount, priceMap, goldPrice,
+    portfolioSnapshot, dcaUsdPerPeriod, dcaPeriodCount, goldPrice,
     activeCostModel, fidelitySnapshot,
+    tickSource, historicalRange, historicalFallbackNotice, setHistoricalFallbackNotice,
   ]);
 
   const estimatedTradesPerDay = strategyType === 'arbitrage'
@@ -271,5 +305,10 @@ export function useStrategyBacktest() {
     arbRegimeGateEnabled,
     regimeGateConfig,
     setRegimeGateConfig,
+    tickSource,
+    setTickSource,
+    historicalRange,
+    setHistoricalRange,
+    historicalFallbackNotice,
   };
 }

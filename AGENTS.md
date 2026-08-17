@@ -83,6 +83,7 @@ goldtracker/
 │   │   ├── ArbitrageAlerts.tsx     # Arbitrage opportunity alerts
 │   │   ├── GlobalArbitrageMonitor.tsx # Cross-venue PAXG/XAUT quotes (venueQuoteFanout) + net-of-fees arb table
 │   │   ├── PortfolioTracker.tsx    # Portfolio management UI + Coinbase sync (uses portfolio/ folder)
+│   │   ├── CounterfactualTradeExplorer.tsx # What-If swap simulator & trajectory visualizer
 │   │   ├── PaperLedgerPanel.tsx    # Paper-trade ledger: summary, realized-P&L curve, fills, CSV export, reset
 │   │   ├── PnLOverTimeChart.tsx    # Portfolio P&L over time visualization
 │   │   ├── TradeSuggestionsPanel.tsx # Trading recommendations + execution (uses tradeSuggestions/ folder)
@@ -101,10 +102,11 @@ goldtracker/
 │   │   ├── sections/               # One-per-view shells (mounted lazily by App.tsx)
 │   │   │   ├── OverviewSection.tsx      # Dashboard + PreciousMetals + TradeSuggestions + ArbitrageAlerts
 │   │   │   ├── AnalyticsSection.tsx     # CorrelationMatrix + GoldComparisonTools + FiscalYearChart + PerformanceComparison
-│   │   │   ├── PortfolioSection.tsx     # PortfolioTracker
+│   │   │   ├── PortfolioSection.tsx     # PortfolioTracker + CounterfactualTradeExplorer + OrderHistory + PaperLedger
 │   │   │   ├── StrategiesSection.tsx    # StrategyDashboard + TradeReplayChart
 │   │   │   └── MarketsSection.tsx       # GlobalArbitrageMonitor + NewsFeed
 │   │   ├── alerts/                 # AlertRuleForm, AlertRulesManager
+│   │   ├── counterfactual/         # CounterfactualChart, CounterfactualStatCards
 │   │   ├── goldComparison/         # 5-tab sub-components (Overlay/Premiums/Currencies/Portfolio + constants/helpers)
 │   │   ├── portfolio/              # Portfolio table/summary/entry-form sub-components + portfolioUtils
 │   │   ├── settings/               # Auth, ExchangeKeys, DryRun, Risk, DataFeed, SecurityWarnings panels
@@ -114,6 +116,7 @@ goldtracker/
 │   ├── hooks/               # Custom React hooks
 │   │   ├── useGoldPrices.ts        # Price transport (REST 60s + optional WebSocket stream)
 │   │   ├── useAppSection.ts        # Active section state (hash-synced)
+│   │   ├── useCounterfactual.ts    # What-If trade simulator data & valuation evaluations
 │   │   ├── useTradeSuggestions.ts  # Trading signal generation
 │   │   ├── useCorrelations.ts      # Correlation calculations (short-term tactical on sparklines)
 │   │   ├── useRegimeAnalysis.ts    # Long-horizon regime/fidelity data (powers Fidelity & Regimes tab)
@@ -123,6 +126,9 @@ goldtracker/
 │   │   ├── useConnectivityStatus.ts # Online/offline detection for OfflineBanner
 │   │   ├── useNews.ts              # News fetching (5 min; fetch-news or mock)
 │   │   ├── useOrderReconciliation.ts # Poll non-terminal orders after tab sleep / outages
+│   │   ├── useOrderSync.ts         # Multi-device order journal sync + offline flush
+│   │   ├── useOrderExecution.ts    # React hook wiring stores & services to pure executeOrder orchestrator
+│   │   ├── useObservability.ts     # Diagnostics & health buffer telemetry subscription
 │   │   ├── useRiskContext.ts       # Pre-trade risk checks + portfolio price map for execution UIs
 │   │   ├── useVenueQuotes.ts       # Cross-venue PAXG/XAUT snapshots for global arb monitor
 │   │   └── useCoinbaseBalances.ts  # Coinbase account balance polling (60s)
@@ -130,6 +136,7 @@ goldtracker/
 │   │   ├── priceStore.ts           # Price data state (single source of truth)
 │   │   ├── themeStore.ts           # Dark/light mode (persisted)
 │   │   ├── portfolioStore.ts       # Portfolio entries with Coinbase sync (persisted)
+│   │   ├── counterfactualStore.ts  # What-If trade explorer parameters & presets (persisted)
 │   │   ├── settingsStore.ts        # Trading settings + exchange selection (persisted)
 │   │   ├── alertStore.ts           # Alert notifications
 │   │   ├── alertRulesStore.ts      # User-configured alert rules (persisted)
@@ -139,6 +146,7 @@ goldtracker/
 │   │   └── useAuthStore.ts         # Supabase auth state
 │   ├── services/            # API service layer
 │   │   ├── tradeService.ts         # Supabase Edge Function calls (store keys, test connection, execute trade)
+│   │   ├── orderJournalService.ts  # Supabase order_journal database queries & sync
 │   │   └── newsService.ts          # fetch-news Edge Function invoke + mock fallback
 │   ├── workers/             # Web Worker bundles (built by Vite)
 │   │   └── analyticsWorker.ts      # Off-thread backtests + rolling correlations
@@ -147,6 +155,7 @@ goldtracker/
 │   │   └── TradeSuggestion.ts      # Trade suggestion types
 │   ├── lib/                 # PURE logic + API clients (no React) — unit-tested with Vitest
 │   │   ├── api.ts                  # API fetching functions (CoinGecko, MetalPrice, mock data, mock news)
+│   │   ├── counterfactual.ts       # Pure what-if trade math, fee drag & valuation trajectories
 │   │   ├── marketCache.ts          # Shared market-history cache: TTL + in-flight dedupe + abort + invalidate (wraps fetchMarketChartSeries)
 │   │   ├── assets.ts               # Single source of truth for tracked assets (ids, symbols, CoinGecko/Coinbase mapping)
 │   │   ├── utils.ts                # Formatting and math utilities
@@ -154,17 +163,20 @@ goldtracker/
 │   │   ├── fiscalYear.ts           # Pure fiscal-year gold chart math
 │   │   ├── regime.ts               # Pure regime/fidelity math (vol, max DD, rolling corrs, Gold Fidelity Score, synth spot, alignment)
 │   │   ├── strategyEngine.ts       # Pure backtest engine (arbitrage + mean-reversion + rebalancer + hold)
+│   │   ├── historicalTicks.ts      # Pure historical tick adapter & multi-asset alignment for backtests (7d/30d/90d)
 │   │   ├── paperTrade.ts           # Pure paper-ledger logic (build fills, average-cost summary, equity curve, CSV)
-│   │   ├── strategyMockTicks.ts    # Mock tick generator for backtests
+│   │   ├── strategyMockTicks.ts    # Mock tick generator for backtests (synthetic fallback)
 │   │   ├── alertRules.ts           # Pure alert-rule evaluation
 │   │   ├── alertNotifications.ts   # Desktop notification helpers
+│   │   ├── observability.ts        # Pure 200-event telemetry ring buffer, PII/secret sanitizer, summary metrics
 │   │   ├── priceSnapshot.ts        # Offline price snapshot persistence (PWA)
 │   │   ├── appSections.ts          # Section registry (ids, labels, shortcuts, nav helpers)
 │   │   ├── lazyNamed.ts            # Named-export React.lazy helper
 │   │   ├── exchanges.ts            # Vite facade over shared/exchanges.json (fees, pairs, auth, capabilities)
 │   │   ├── exchangeAdapters.ts     # ExchangeAdapter interface wrapping Coinbase/Kraken (balances/placeOrder/fees/pairs)
-│   │   ├── executeOrder.ts         # executeOrderWithLifecycle — risk gate + adapter + journal writes
+│   │   ├── executeOrder.ts         # Pure order lifecycle orchestrator (risk gate, duplicate check, paper/live transitions, cancel, poll with injectable deps)
 │   │   ├── orderLifecycle.ts       # Pure order state machine, reconciliation helpers
+│   │   ├── orderSync.ts            # Pure order journal mapping, conflict resolution, merge semantics
 │   │   ├── riskEngine.ts           # Pre-trade limits, kill switch, portfolio metrics
 │   │   ├── priceTransport.ts       # Poll + WebSocket transport with auto fallback
 │   │   ├── venueQuoteFanout.ts     # Parallel cross-venue quote fetch for arb monitor
@@ -186,7 +198,7 @@ goldtracker/
 │   │   ├── fetch-news/index.ts     # Server-side RSS aggregation for Markets news
 │   │   ├── test-connection/index.ts # Test exchange connectivity
 │   │   └── _shared/registry.ts     # Re-export of shared/registry.ts for Deno
-│   ├── schema.sql           # Database schema (user_exchange_keys, trade_logs, RLS policies)
+│   ├── schema.sql           # Database schema (user_exchange_keys, order_journal, trade_logs, RLS policies)
 │   ├── DEPLOY.md            # Deployment guide
 │   └── README.md            # Backend documentation
 ├── public/                  # Static assets
@@ -384,6 +396,7 @@ export const useStore = create<StoreState>()(
 - **Arbitrage alerts**: Debounced to once per 5 minutes per pair
 - **Coinbase balances**: 60 seconds when sync enabled (`useCoinbaseBalances.ts`)
 - **Order reconciliation**: background poll for non-terminal journal rows (`useOrderReconciliation` in `App.tsx`)
+- **System Observability & Diagnostic Ring Buffer**: pure 200-event in-memory ring buffer (`observability.ts` + `useObservability.ts`) capturing price fetches, WS connection/reconnect/fallback events, venue quotes, trade attempts with latency & risk blocks, Edge function invocations, and market cache hits/dedupes. Accessible in Settings → System Health & Diagnostics with exportable sanitized JSON.
 
 ### API Key Configuration
 

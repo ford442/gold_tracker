@@ -57,7 +57,7 @@ export interface ExchangeAdapter {
   placeOrder(order: TradeOrder, dryRun: boolean, creds: AdapterCredentials): Promise<OrderResult>;
   /** Verify API credentials (client-side where supported). */
   testConnection(creds: AdapterCredentials): Promise<boolean>;
-  /** Lifecycle stub for Phase B — not wired to UI yet. */
+  /** Query order status for reconciliation (where venue allows client-side). */
   getOrderStatus?(
     orderId: string,
     productId: string,
@@ -128,8 +128,8 @@ const coinbaseAdapter = makeAdapter('coinbase', {
       })
       .filter((b): b is AdapterBalance => b !== null);
   },
-  async placeOrder(order, dryRun) {
-    return coinbasePlaceOrder(order, dryRun);
+  async placeOrder(order, dryRun, creds) {
+    return coinbasePlaceOrder(order, dryRun, creds);
   },
   async testConnection(creds) {
     return testCoinbaseConnection(creds);

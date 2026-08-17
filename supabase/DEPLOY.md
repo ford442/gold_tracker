@@ -180,8 +180,9 @@ Body: {
 - The HMAC-SHA512 implementation in Edge Function needs to be completed
 - Production requires proper crypto.subtle HMAC implementation
 
-## Migration from Single-Exchange
+## Migration from Single-Exchange & Legacy Trade Logs
 
+### 1. Multi-Exchange Keys Migration
 If you have existing data with single-exchange:
 
 ```sql
@@ -191,3 +192,40 @@ FROM user_exchange_keys;
 
 -- Existing rows will have exchange = 'coinbase' (default from old schema)
 ```
+
+### 2. Order Journal Migration (`trade_logs` → `order_journal`)
+The new durable `order_journal` table replaces coarse `trade_logs` with full lifecycle support (`OrderRecord` aligned):
+
+```sql
+-- Check order_journal status
+SELECT COUNT(*), state, mode FROM order_journal GROUP BY state, mode;
+
+-- Optional backfill from legacy trade_logs if you have existing trade_logs:
+INSERT INTO order_journal (
+  user_id, client_order_id, venue_order_id, exchange, mode,
+  state, product_id, side, requested_qty, filled_qty,
+  fee_usd, idempotency_key, created_at, updated_at
+)
+SELECT 
+  user_id,
+  COALESCE(order_id, 'legacy-' || id::text),
+  order_id,
+  exchange,
+  CASE WHEN dry_run THEN 'paper' ELSE 'live' END,
+  CASE 
+    WHEN status = 'success' THEN 'filled'
+    WHEN status = 'error' THEN 'failed'
+    ELSE 'submitted'
+  END,
+  product_id,
+  side,
+  size,
+  CASE WHEN status = 'success' THEN size ELSE 0 END,
+  0,
+  exchange || ':' || product_id || ':' || side || ':legacy:' || size::text,
+  created_at,
+  created_at
+FROM trade_logs
+ON CONFLICT (user_id, client_order_id) DO NOTHING;
+```
+

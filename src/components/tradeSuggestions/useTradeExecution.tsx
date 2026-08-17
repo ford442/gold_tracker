@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import { usePriceStore } from '@/store/priceStore';
 import { usePaperTradeStore } from '@/store/paperTradeStore';
 import { useRiskContext } from '@/hooks/useRiskContext';
+import { useOrderExecution, OrderExecutionError } from '@/hooks/useOrderExecution';
 import { buildMarketIocOrder } from '@lib/orderTypes';
-import { executeOrderWithLifecycle, OrderExecutionError } from '@lib/executeOrder';
 import { baseSymbolFromProductId, buildPaperFill } from '@lib/paperTrade';
 import { fromSymbol } from '@lib/assets';
 import type { TradeSuggestion } from '@/types/TradeSuggestion';
@@ -32,10 +31,10 @@ function showRiskBlockToast(reasons: string[], nfaCopy: string) {
 
 export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOptions) {
   const { dryRun, maxTradeSize, selectedExchange } = useSettingsStore();
-  const { user } = useAuthStore();
   const { prices, goldSpot } = usePriceStore();
   const recordFill = usePaperTradeStore((s) => s.recordFill);
-  const { checkOrderRisk, nfaCopy, priceMap } = useRiskContext();
+  const { checkOrderRisk, nfaCopy } = useRiskContext();
+  const { executeOrder } = useOrderExecution();
   const [executingId, setExecutingId] = useState<string | null>(null);
 
   const priceForProduct = (productId: string): number => {
@@ -83,15 +82,13 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
       });
       recordFill(fill);
 
-      await executeOrderWithLifecycle({
+      await executeOrder({
         order,
         dryRun: true,
         exchange: selectedExchange,
-        user,
         source: suggestion.id,
         mode: 'paper',
         paperFillId: fill.id,
-        riskPrices: priceMap,
         unitPriceUsd: unitPrice,
       });
 
@@ -117,14 +114,12 @@ export function useTradeExecution({ onKrakenAuthRequired }: UseTradeExecutionOpt
     );
 
     try {
-      const { result } = await executeOrderWithLifecycle({
+      const { result } = await executeOrder({
         order,
         dryRun: false,
         exchange: selectedExchange,
-        user,
         source: suggestion.id,
         mode: 'live',
-        riskPrices: priceMap,
         unitPriceUsd: unitPrice,
       });
 

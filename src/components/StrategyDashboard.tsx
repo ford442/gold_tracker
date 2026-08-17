@@ -3,10 +3,12 @@ import { CostModelSelector } from '@components/strategy/CostModelSelector';
 import { useStrategyBacktest } from '@/hooks/useStrategyBacktest';
 import { BacktestConfigForm } from '@components/strategy/BacktestConfigForm';
 import { ScenarioLabPanel } from '@components/strategy/ScenarioLabPanel';
+import { DataSourceSelector } from '@components/strategy/DataSourceSelector';
 import { PerformanceStatBoxes } from '@components/strategy/PerformanceStatBoxes';
 import { EquityCurveChart } from '@components/strategy/EquityCurveChart';
 import { TradeLogTable } from '@components/strategy/TradeLogTable';
 import { Field } from '@components/strategy/StrategyFormPrimitives';
+import { HISTORICAL_RANGE_CONFIG } from '@lib/historicalTicks';
 
 export function StrategyDashboard() {
   const {
@@ -50,6 +52,11 @@ export function StrategyDashboard() {
     arbRegimeGateEnabled,
     regimeGateConfig,
     setRegimeGateConfig,
+    tickSource,
+    setTickSource,
+    historicalRange,
+    setHistoricalRange,
+    historicalFallbackNotice,
   } = useStrategyBacktest();
 
   const r = lastResult;
@@ -140,6 +147,14 @@ export function StrategyDashboard() {
           <span className="heading-icon">🔧</span> Strategy Configurator
         </h3>
 
+        <DataSourceSelector
+          tickSource={tickSource}
+          historicalRange={historicalRange}
+          historicalFallbackNotice={historicalFallbackNotice}
+          onTickSourceChange={setTickSource}
+          onHistoricalRangeChange={setHistoricalRange}
+        />
+
         {isLab ? (
           <ScenarioLabPanel
             selectedScenario={selectedScenario}
@@ -226,7 +241,7 @@ export function StrategyDashboard() {
             gap: '10px',
             boxShadow: isRunning ? 'none' : 'var(--shadow-md)',
           }}
-          aria-label="Run back-test over 30 days of synthetic data"
+          aria-label="Run back-test simulation"
         >
           {isRunning ? (
             <>
@@ -244,8 +259,10 @@ export function StrategyDashboard() {
             </>
           ) : isLab ? (
             '▶ Run Scenario Simulation'
+          ) : tickSource === 'historical' ? (
+            `▶ Run Backtest (${HISTORICAL_RANGE_CONFIG[historicalRange]?.label ?? '30 Days'} Historical)`
           ) : (
-            '▶ Run Backtest (30 Days)'
+            '▶ Run Backtest (Synthetic 30D)'
           )}
         </button>
       </div>

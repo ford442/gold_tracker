@@ -46,8 +46,16 @@ interface StrategyState extends ArbStoreConfig, MRStoreConfig, ScenarioLabConfig
   isRunning: boolean;
   lastScenarioResult: BacktestResult | null; // separate for lab mode (optional reuse of lastResult)
 
+  // Historical data configuration (P1 Feature)
+  tickSource: 'synthetic' | 'historical';
+  historicalRange: '7d' | '30d' | '90d';
+  historicalFallbackNotice: string | null;
+
   // ── Actions ──────────────────────────────────────────────────────────────
   setStrategyType: (t: 'arbitrage' | 'mean-reversion') => void;
+  setTickSource: (s: 'synthetic' | 'historical') => void;
+  setHistoricalRange: (r: '7d' | '30d' | '90d') => void;
+  setHistoricalFallbackNotice: (n: string | null) => void;
   setArbConfig: (c: Partial<ArbStoreConfig>) => void;
   setRegimeGateConfig: (c: Partial<RegimeGateConfig>) => void;
   setMrConfig: (c: Partial<MRStoreConfig>) => void;
@@ -95,6 +103,11 @@ export const useStrategyStore = create<StrategyState>()(
       lastResult: null,
       isRunning: false,
 
+      // Historical data defaults (P1 Feature)
+      tickSource: 'historical',
+      historicalRange: '30d',
+      historicalFallbackNotice: null,
+
       // Scenario Lab defaults (Feature 3)
       scenarioMode: 'classic',
       selectedScenario: 'flight-to-gold',
@@ -108,6 +121,9 @@ export const useStrategyStore = create<StrategyState>()(
 
       // ── Actions ──────────────────────────────────────────────────────────
       setStrategyType: (t) => set({ strategyType: t }),
+      setTickSource: (s) => set({ tickSource: s }),
+      setHistoricalRange: (r) => set({ historicalRange: r }),
+      setHistoricalFallbackNotice: (n) => set({ historicalFallbackNotice: n }),
       setArbConfig: (c) => set((s) => ({ ...s, ...c })),
       setRegimeGateConfig: (c) =>
         set((s) => ({ regimeGateConfig: { ...s.regimeGateConfig, ...c } })),

@@ -7,6 +7,7 @@ import { ModalSkeleton } from '@components/LoadingSkeleton';
 import { useGoldPrices } from '@/hooks/useGoldPrices';
 import { useAppSection } from '@/hooks/useAppSection';
 import { useOrderReconciliation } from '@/hooks/useOrderReconciliation';
+import { useOrderSync } from '@/hooks/useOrderSync';
 import { useThemeStore } from '@/store/themeStore';
 import {
   APP_SECTIONS,
@@ -46,6 +47,7 @@ function App() {
   const [settingsMounted, setSettingsMounted] = useState(false);
   const { section, setSection } = useAppSection();
   useOrderReconciliation();
+  useOrderSync();
 
   const openSettings = useCallback(() => {
     setSettingsMounted(true);

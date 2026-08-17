@@ -23,12 +23,12 @@ function createAppClient(): AppSupabaseClient {
     return createMockSupabaseClient();
   }
 
-  return createClient(supabaseUrl!, supabaseAnonKey!, {
+  return (createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
     },
-  }) as AppSupabaseClient;
+  }) as unknown) as AppSupabaseClient;
 }
 
 export const supabase: AppSupabaseClient = createAppClient();

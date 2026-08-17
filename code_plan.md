@@ -40,14 +40,14 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 - [x] **E2E smoke tests** ([#36](https://github.com/ford442/gold_tracker/issues/36)) — `e2e/` + dedicated CI job
 - [x] **Tax-lot accounting** ([#41](https://github.com/ford442/gold_tracker/issues/41)) — `portfolioLots.ts` + cost-basis / gold-oz UI
 - [x] **Hardened key UX** ([#40](https://github.com/ford442/gold_tracker/issues/40)) — typed Supabase client + mock fallback
+- [x] **Server-side order journal durability** — durable Postgres `order_journal` + multi-device replay (`orderSync.ts`, `orderJournalService.ts`, `useOrderSync.ts`)
+- [x] **Trade & connectivity observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — pure ring buffer telemetry (`observability.ts`), summary metrics, `useObservability`, and `SystemObservabilityPanel` in Settings
+- [x] **Historical backtests on real market data** — `lib/historicalTicks.ts` (7d/30d/90d) + `DataSourceSelector.tsx` + `marketCache` integration with synthetic fallback
 - [x] **Docs truth refresh** ([#51](https://github.com/ford442/gold_tracker/issues/51)) — this document + [docs/ROADMAP.md](docs/ROADMAP.md) + [AGENTS.md](AGENTS.md) + [docs/SHIPPED.md](docs/SHIPPED.md)
 
 ### Remaining ▢ (verified gaps only)
 
-- [ ] **Trade & connectivity observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — API health dashboard, trade-failure history, latency / cache metrics (today: toasts + `OfflineBanner` only)
-- [ ] **Server-side order journal durability** — order journal persists in browser `localStorage` via `orderStore`; no Postgres `trade_logs` replay / multi-device journal yet
 - [ ] **Gemini live trading** — Gemini is quote-only in `shared/exchanges.json` (`canTrade: false`); no `ExchangeAdapter` or Edge execution path
-- [ ] **Historical backtests on real market data** — Classic Backtest / Scenario Lab still seed from `strategyMockTicks.ts`; no CoinGecko tick replay pipeline
 - [ ] **`lint:strict` CI gate** — ~52 `ESLINT_STRICT=1` violations remain; aspirational gate not wired into CI
 - [ ] **WASM analytics offload** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — deferred; web workers shipped instead ([#54](https://github.com/ford442/gold_tracker/issues/54))
 
@@ -55,7 +55,7 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 
 - **Mock** — no API keys, offline, or Supabase unconfigured → CoinGecko / MetalPrice / news mocks
 - **Live data** — keys present → real prices via REST + optional WebSocket transport (`settingsStore.priceTransportMode`); news live when Supabase `fetch-news` is deployed
-- **Live trading** — server-secure or local keys with dry-run off → `executeOrderWithLifecycle` with risk gates + client journal; still no server-durable order history
+- **Live trading** — server-secure or local keys with dry-run off → `executeOrderWithLifecycle` with risk gates + client journal + durable Postgres order journal sync
 
 ### Out of scope 🚫 (intentionally not pursued)
 

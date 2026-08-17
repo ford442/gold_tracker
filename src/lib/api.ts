@@ -226,9 +226,7 @@ export async function fetchOtherMetals(apiKey?: string): Promise<MetalSpot[]> {
 
 /** @deprecated Use fetchLiveNews from services/newsService */
 export async function fetchGoldNews(): Promise<NewsItem[]> {
-  const { fetchLiveNews } = await import('@/services/newsService');
-  const result = await fetchLiveNews();
-  return result.items;
+  return Promise.resolve(getMockNews());
 }
 
 // Mock data for development / API-key-free usage

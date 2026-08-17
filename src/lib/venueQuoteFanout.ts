@@ -12,6 +12,7 @@ import {
   snapshotsFromFixture,
   type VenueGoldSnapshot,
 } from './venueQuotes';
+import { recordObservabilityEvent } from './observability';
 import venueQuotesFixture from './__fixtures__/venueQuotes.json';
 
 export const COINBASE_BEST_BID_ASK_URL =
@@ -100,6 +101,7 @@ async function fetchAllSnapshots(
 ): Promise<VenueQuoteFanoutResult> {
   if (opts.useMock) return mockResult();
 
+  const start = performance.now();
   const fetcher = opts.fetcher ?? defaultFetcher;
   const indexMids = opts.indexMids;
   const errors: string[] = [];
@@ -118,10 +120,33 @@ async function fetchAllSnapshots(
     if (snap) snapshots.push(snap);
   }
 
+  const latencyMs = performance.now() - start;
+
   if (snapshots.length === 0) {
     const mock = mockResult();
+    recordObservabilityEvent({
+      kind: 'venue_quote',
+      severity: 'warn',
+      ok: false,
+      source: 'venue-fanout',
+      action: 'quote_fanout',
+      latencyMs,
+      detail: `Venue quote fan-out failed (using mock): ${errors.join(', ')}`,
+      meta: { errors },
+    });
     return { ...mock, errors };
   }
+
+  recordObservabilityEvent({
+    kind: 'venue_quote',
+    severity: errors.length > 0 ? 'warn' : 'info',
+    ok: true,
+    source: 'venue-fanout',
+    action: 'quote_fanout',
+    latencyMs,
+    detail: `Venue quotes updated: ${snapshots.length} venues (${snapshots.map((s) => s.venueId).join(', ')})${errors.length ? ' [errors: ' + errors.join(', ') + ']' : ''}`,
+    meta: { venueCount: snapshots.length, venues: snapshots.map((s) => s.venueId) },
+  });
 
   return {
     snapshots,

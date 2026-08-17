@@ -9,7 +9,7 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 ## Shipped on `main` (snapshot)
 
 - **Prices & metals** — REST (60s) + optional WebSocket transport (`priceTransport.ts`, Settings → Data Feed: auto / poll / stream); mock fallback
-- **Order lifecycle (client)** — `orderLifecycle.ts`, `orderStore`, `executeOrderWithLifecycle`, `useOrderReconciliation`, `OrderHistoryPanel`
+- **Order lifecycle & server journal** — `orderLifecycle.ts`, `orderStore`, `executeOrderWithLifecycle`, `useOrderReconciliation`, `OrderHistoryPanel`, durable `order_journal` sync via `orderSync.ts` + `orderJournalService.ts`
 - **Risk engine** — `riskEngine.ts`, `useRiskContext`, Settings kill-switch / limits ([#50](https://github.com/ford442/gold_tracker/issues/50))
 - **Execution** — Coinbase CDP + Kraken via `exchangeAdapters` + `executeOrder.ts`, dry-run default, Supabase Edge Functions
 - **Shared registry** — `shared/exchanges.json` + `shared/registry.ts`; Edge re-export ([#45](https://github.com/ford442/gold_tracker/issues/45))
@@ -31,7 +31,6 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 | Theme | Issue / track | Priority | Note |
 |-------|---------------|----------|------|
 | Observability | [#49](https://github.com/ford442/gold_tracker/issues/49) | P1 | Toasts + `OfflineBanner` only; no health/latency dashboard |
-| Server order journal | — | P1 | Client `orderStore` only; Postgres durability not wired |
 | Historical backtests | — | P2 | `strategyMockTicks.ts` only; no CoinGecko tick replay |
 | Gemini trading | — | P2 | Quote-only today (`canTrade: false` in registry) |
 | `lint:strict` CI | — | P2 | ~52 violations; not a required CI gate yet |

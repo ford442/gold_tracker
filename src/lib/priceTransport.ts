@@ -7,6 +7,7 @@
 
 import type { AssetId } from './assets';
 import { DASHBOARD_PRICE_ASSET_IDS } from './assets';
+import { recordObservabilityEvent } from './observability';
 
 export type PriceTransportMode = 'auto' | 'poll' | 'stream';
 export type TransportKind = 'poll' | 'stream' | 'offline' | 'mock';
@@ -334,6 +335,15 @@ export function createWebSocketTransport(opts: WebSocketTransportOptions): Price
     if (!started || !isOnline()) return;
     status.connection = 'reconnecting';
     failureCount += 1;
+    recordObservabilityEvent({
+      kind: 'ws_status',
+      severity: 'warn',
+      ok: false,
+      source: `${conn.name}-ws`,
+      exchange: conn.name,
+      action: 'reconnect',
+      detail: `WebSocket reconnect attempt ${conn.attempt + 1} (${conn.name})`,
+    });
     if (failureCount >= AUTO_FALLBACK_FAILURES) {
       opts.onFailure?.();
     }
@@ -354,6 +364,15 @@ export function createWebSocketTransport(opts: WebSocketTransportOptions): Price
         conn.attempt = 0;
         status.connection = 'connected';
         status.kind = 'stream';
+        recordObservabilityEvent({
+          kind: 'ws_status',
+          severity: 'success',
+          ok: true,
+          source: `${conn.name}-ws`,
+          exchange: conn.name,
+          action: 'connect',
+          detail: `${conn.name.toUpperCase()} WebSocket stream connected`,
+        });
         if (conn.name === 'coinbase') {
           ws.send(JSON.stringify({
             type: 'subscribe',
@@ -497,6 +516,14 @@ export function createAutoTransport(opts: AutoTransportOptions): PriceTransport 
       coalescer.dispose();
       status.kind = 'poll';
       status.connection = 'fallback';
+      recordObservabilityEvent({
+        kind: 'ws_status',
+        severity: 'warn',
+        ok: false,
+        source: 'auto-transport',
+        action: 'fallback_rest',
+        detail: 'Auto transport fell back to REST polling after stream silence or errors',
+      });
       opts.onFallback?.();
       pollTransport.start();
     },

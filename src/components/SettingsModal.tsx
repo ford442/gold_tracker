@@ -10,6 +10,7 @@ import { ExchangeSelector, ApiKeysForm } from './settings/ExchangeKeysForm';
 import { RiskManagementPanel, AutoTradePanel } from './settings/DryRunToggles';
 import { DataFeedPanel } from './settings/DataFeedPanel';
 import { AlertRulesSettingsPanel } from './settings/AlertRulesSettingsPanel';
+import { SystemObservabilityPanel } from './settings/SystemObservabilityPanel';
 import { describeStoredKey } from '@lib/keyDisplay';
 
 interface SettingsModalProps {
@@ -266,6 +267,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             maxHeight="700px"
           >
             <AlertRulesSettingsPanel />
+          </AccordionPanel>
+
+          <AccordionPanel
+            section="observability"
+            title="System Health & Diagnostics"
+            icon="🩺"
+            openSection={openSection}
+            onToggle={toggleSection}
+            maxHeight="800px"
+          >
+            <SystemObservabilityPanel />
           </AccordionPanel>
         </div>
 

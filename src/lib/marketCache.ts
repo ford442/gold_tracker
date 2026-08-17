@@ -18,6 +18,7 @@
  */
 
 import { fetchMarketChartSeries } from './api';
+import { recordObservabilityEvent } from './observability';
 
 export type MarketSeries = [number, number][];
 
@@ -135,12 +136,37 @@ export function getMarketChartSeries(
   } else {
     const hit = cache.get(k);
     if (hit && Date.now() - hit.savedAt < ttlMs) {
+      recordObservabilityEvent({
+        kind: 'cache',
+        severity: 'info',
+        ok: true,
+        source: 'market-cache',
+        action: 'cache_hit',
+        detail: `Market cache hit: ${k}`,
+      });
       return raceWithSignal(Promise.resolve(hit.data), signal);
     }
   }
 
   let shared = inFlight.get(k);
-  if (!shared) {
+  if (shared) {
+    recordObservabilityEvent({
+      kind: 'cache',
+      severity: 'info',
+      ok: true,
+      source: 'market-cache',
+      action: 'cache_dedupe',
+      detail: `In-flight fetch shared: ${k}`,
+    });
+  } else {
+    recordObservabilityEvent({
+      kind: 'cache',
+      severity: 'info',
+      ok: true,
+      source: 'market-cache',
+      action: 'cache_miss',
+      detail: `Market cache miss: fetching ${k}`,
+    });
     // Note: the shared fetch is intentionally NOT bound to any caller's signal —
     // one waiter aborting must not cancel the fetch the others are awaiting.
     shared = (async () => {

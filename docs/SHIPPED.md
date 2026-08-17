@@ -25,13 +25,22 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 | Module | Verify path | Wired from |
 |--------|-------------|------------|
 | Order lifecycle (pure) | `src/lib/orderLifecycle.ts` | `executeOrder.ts`, `orderStore` |
-| Order orchestrator | `src/lib/executeOrder.ts` | `useTradeExecution`, `GlobalArbitrageMonitor` |
-| Order journal store | `src/store/orderStore.ts` | `executeOrderWithLifecycle`, `OrderHistoryPanel` |
+| Order orchestrator (pure) | `src/lib/executeOrder.ts` | `useOrderExecution.ts` |
+| Order execution hook | `src/hooks/useOrderExecution.ts` | `useTradeExecution`, `GlobalArbitrageMonitor`, `OrderHistoryPanel`, `useOrderReconciliation` |
+| Order journal store | `src/store/orderStore.ts` | `useOrderExecution`, `OrderHistoryPanel` |
 | Reconciliation hook | `src/hooks/useOrderReconciliation.ts` | `App.tsx` |
 | Order history UI | `src/components/OrderHistoryPanel.tsx` | `PortfolioSection`, `MarketsSection` |
 | Risk engine | `src/lib/riskEngine.ts` | `useRiskContext`, `DryRunToggles` / Risk panel |
-| Exchange adapters | `src/lib/exchangeAdapters.ts` | `executeOrder.ts` |
+| Exchange adapters | `src/lib/exchangeAdapters.ts` | `useOrderExecution.ts` |
 | Shared registry | `shared/exchanges.json`, `shared/registry.ts` | `lib/exchanges.ts`, Edge `_shared/registry.ts` |
+
+## Observability & diagnostics
+
+| Module | Verify path | Wired from |
+|--------|-------------|------------|
+| Telemetry ring buffer (pure) | `src/lib/observability.ts` | `priceTransport.ts`, `useGoldPrices.ts`, `marketCache.ts`, `venueQuoteFanout.ts`, `executeOrder.ts`, `tradeService.ts`, `newsService.ts` |
+| Observability hook | `src/hooks/useObservability.ts` | `SystemObservabilityPanel.tsx` |
+| Diagnostics UI | `src/components/settings/SystemObservabilityPanel.tsx` | `SettingsModal.tsx` |
 
 ## Backend / services
 
@@ -39,6 +48,7 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 |--------|-------------|------------|
 | News proxy | `supabase/functions/fetch-news/` | `services/newsService.ts` → `useNews` |
 | Place trade (Edge) | `supabase/functions/place-trade/` | `services/tradeService.ts` |
+| Server order journal | `src/lib/orderSync.ts`, `src/services/orderJournalService.ts`, `supabase/schema.sql` (`order_journal`) | `src/hooks/useOrderSync.ts`, `App.tsx` |
 
 ## Analytics
 
@@ -46,6 +56,10 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 |--------|-------------|------------|
 | Analytics worker | `src/workers/analyticsWorker.ts` | `lib/workerClient.ts` |
 | Worker client | `src/lib/workerClient.ts` | `useStrategyBacktest`, `useRegimeAnalysis` |
+| Historical backtest ticks (pure) | `src/lib/historicalTicks.ts` | `useStrategyBacktest.ts` via `marketCache` |
+| Data source UI | `src/components/strategy/DataSourceSelector.tsx` | `StrategyDashboard.tsx` |
+| Counterfactual trade engine (pure) | `src/lib/counterfactual.ts` | `useCounterfactual.ts` |
+| Counterfactual trade explorer UI | `src/components/CounterfactualTradeExplorer.tsx` | `PortfolioSection.tsx` |
 
 ---
 
@@ -53,8 +67,8 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 
 | Gap | Why |
 |-----|-----|
-| Server-durable order journal | `orderStore` is browser `localStorage` only |
-| Observability dashboard | [#49](https://github.com/ford442/gold_tracker/issues/49) — no dedicated UI |
 | Gemini live trading | Registry `canTrade: false`; no adapter |
-| Real-tick backtests | `strategyMockTicks.ts` only |
 | `lint:strict` CI gate | ~52 violations remain |
+
+
+

@@ -1,4 +1,4 @@
-export type AccordionSection = 'account' | 'exchange' | 'api' | 'data' | 'risk' | 'auto' | 'alerts' | null;
+export type AccordionSection = 'account' | 'exchange' | 'api' | 'data' | 'risk' | 'auto' | 'alerts' | 'observability' | null;
 
 export interface SectionHeaderProps {
   section: AccordionSection;

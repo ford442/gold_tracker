@@ -5,6 +5,10 @@ const PortfolioTracker = lazyNamed(
   () => import('@components/PortfolioTracker'),
   'PortfolioTracker',
 );
+const CounterfactualTradeExplorer = lazyNamed(
+  () => import('@components/CounterfactualTradeExplorer'),
+  'CounterfactualTradeExplorer',
+);
 const PaperLedgerPanel = lazyNamed(
   () => import('@components/PaperLedgerPanel'),
   'PaperLedgerPanel',
@@ -18,6 +22,10 @@ export default function PortfolioSection() {
   return (
     <div className="panel-stack">
       <LazyPanel component={PortfolioTracker} fallback="table" />
+
+      <div className="section-divider" />
+
+      <LazyPanel component={CounterfactualTradeExplorer} fallback="chart" />
 
       <div className="section-divider" />
 

@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOrderStore } from '@/store/orderStore';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useOrderExecution } from '@/hooks/useOrderExecution';
 import { canCancelOrder, type OrderLifecycleState, type OrderRecord } from '@lib/orderLifecycle';
-import { cancelOrderWithLifecycle } from '@lib/executeOrder';
 import { formatTimeAgo } from '@lib/utils';
 
 const STATE_CHIP: Record<OrderLifecycleState, { label: string; className: string }> = {
@@ -88,7 +87,7 @@ function OrderRow({
 
 export function OrderHistoryPanel() {
   const orders = useOrderStore((s) => s.orders);
-  const { user } = useAuthStore();
+  const { cancelOrder } = useOrderExecution();
   const [cancelling, setCancelling] = useState<string | null>(null);
 
   const openOrders = useMemo(
@@ -107,7 +106,7 @@ export function OrderHistoryPanel() {
   const handleCancel = async (order: OrderRecord) => {
     setCancelling(order.clientOrderId);
     try {
-      await cancelOrderWithLifecycle(order, user);
+      await cancelOrder(order);
     } finally {
       setCancelling(null);
     }

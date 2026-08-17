@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { usePriceStore } from '@/store/priceStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useRiskContext } from '@/hooks/useRiskContext';
+import { useOrderExecution, OrderExecutionError } from '@/hooks/useOrderExecution';
 import { useVenueQuotes } from '@/hooks/useVenueQuotes';
 import { resolvePaxgXautArbOrder } from '@lib/orderTypes';
-import { executeOrderWithLifecycle, OrderExecutionError } from '@lib/executeOrder';
 import {
   comparePaxgXautArbFees,
   getExchangeConfig,
@@ -108,8 +107,8 @@ function VenueRow({ snapshot }: { snapshot: VenueGoldSnapshot }) {
 export function GlobalArbitrageMonitor() {
   const { prices } = usePriceStore();
   const { dryRun, selectedExchange, maxTradeSize, setSelectedExchange } = useSettingsStore();
-  const { user } = useAuthStore();
-  const { checkOrderRisk, nfaCopy, priceMap } = useRiskContext();
+  const { checkOrderRisk, nfaCopy } = useRiskContext();
+  const { executeOrder } = useOrderExecution();
   const {
     snapshots,
     bestOpportunity,
@@ -164,7 +163,7 @@ export function GlobalArbitrageMonitor() {
     if (!risk.allowed) {
       toast.error(
         <div className="flex flex-col">
-          <span className="font-semibold">Risk guardrail blocked trade</span>
+          <span className="font-semibold">Risk guardrail blocked ARB execution</span>
           <ul className="text-sm mt-1 list-disc pl-4">
             {risk.reasons.map((r) => (
               <li key={r}>{r}</li>
@@ -187,14 +186,12 @@ export function GlobalArbitrageMonitor() {
 
     try {
       const order = resolvePaxgXautArbOrder(selectedExchange, spreadSign, qty);
-      const { result } = await executeOrderWithLifecycle({
+      const { result } = await executeOrder({
         order,
         dryRun,
         exchange: selectedExchange,
-        user,
         source: 'arb',
         mode: dryRun ? 'paper' : 'live',
-        riskPrices: priceMap,
         unitPriceUsd: unitPrice,
       });
 

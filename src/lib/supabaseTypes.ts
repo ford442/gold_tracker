@@ -19,7 +19,12 @@ export type AuthStateChangeCallback = (
   session: Session | null,
 ) => void;
 
-/** Supabase surface area used by GoldTrackr (auth + edge functions). */
+export type PostgrestQueryResult<T = unknown> = {
+  data: T | null;
+  error: { message: string; code?: string; details?: string; hint?: string } | null;
+};
+
+/** Supabase surface area used by GoldTrackr (auth + edge functions + table queries). */
 export interface AppSupabaseClient {
   auth: {
     getUser: () => Promise<AuthUserResult>;
@@ -42,6 +47,28 @@ export interface AppSupabaseClient {
       name: string,
       options?: { body?: Record<string, unknown> },
     ) => Promise<FunctionsInvokeResult<T>>;
+  };
+  from: <T = unknown>(table: string) => {
+    select: (columns?: string) => {
+      eq: (column: string, value: unknown) => {
+        order: (column: string, options?: { ascending?: boolean }) => {
+          limit: (count: number) => Promise<PostgrestQueryResult<T[]>>;
+        };
+      };
+      order: (column: string, options?: { ascending?: boolean }) => {
+        limit: (count: number) => Promise<PostgrestQueryResult<T[]>>;
+      };
+    };
+    upsert: (
+      values: unknown,
+      options?: { onConflict?: string; ignoreDuplicates?: boolean },
+    ) => Promise<PostgrestQueryResult<T>>;
+    insert: (values: unknown) => Promise<PostgrestQueryResult<T>>;
+    update: (values: unknown) => {
+      eq: (column: string, value: unknown) => {
+        eq: (column2: string, value2: unknown) => Promise<PostgrestQueryResult<T>>;
+      } & Promise<PostgrestQueryResult<T>>;
+    };
   };
 }
 
