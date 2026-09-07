@@ -41,7 +41,7 @@ export function AuthPanel({ onSignOut }: AuthPanelProps) {
           ✅ Keys can be stored encrypted on Supabase
         </p>
         <button
-          onClick={onSignOut}
+          onClick={() => { void onSignOut(); }}
           style={{
             fontSize: '0.85rem',
             color: 'var(--color-red)',
@@ -58,7 +58,7 @@ export function AuthPanel({ onSignOut }: AuthPanelProps) {
   }
 
   return (
-    <form onSubmit={handleAuth} className="space-y-3">
+    <form onSubmit={(e) => { void handleAuth(e); }} className="space-y-3">
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
         <button
           type="button"

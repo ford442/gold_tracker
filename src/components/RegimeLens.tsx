@@ -262,7 +262,7 @@ export function RegimeLens() {
                       stroke="var(--color-muted)"
                       tick={{ fill: 'var(--color-muted)', fontSize: 9 }}
                       domain={[-1, 1]}
-                      tickFormatter={(v) => v.toFixed(1)}
+                      tickFormatter={(v: number) => v.toFixed(1)}
                       width={28}
                     />
                     <Tooltip

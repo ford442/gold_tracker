@@ -159,7 +159,8 @@ describe('observability', () => {
       });
 
       expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener.mock.calls[0][0].detail).toBe('Subscribed event');
+      const event = listener.mock.calls[0]?.[0] as { detail?: string } | undefined;
+      expect(event?.detail).toBe('Subscribed event');
 
       unsubscribe();
       buffer.append({

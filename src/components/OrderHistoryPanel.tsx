@@ -65,7 +65,7 @@ function OrderRow({
         {canCancelOrder(order) && (
           <button
             type="button"
-            onClick={() => onCancel(order)}
+            onClick={() => { void onCancel(order); }}
             disabled={cancelling === order.clientOrderId}
             style={{
               fontSize: 'var(--font-xxs)',
@@ -103,13 +103,9 @@ export function OrderHistoryPanel() {
     [orders, openOrders],
   );
 
-  const handleCancel = async (order: OrderRecord) => {
+  const handleCancel = (order: OrderRecord): void => {
     setCancelling(order.clientOrderId);
-    try {
-      await cancelOrder(order);
-    } finally {
-      setCancelling(null);
-    }
+    void cancelOrder(order).finally(() => setCancelling(null));
   };
 
   if (orders.length === 0) {

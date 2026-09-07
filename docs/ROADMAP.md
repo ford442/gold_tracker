@@ -20,7 +20,8 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 - **Analytics workers** — `workers/analyticsWorker.ts` + `workerClient.ts` ([#54](https://github.com/ford442/gold_tracker/issues/54))
 - **Tax lots** — `portfolioLots.ts` + cost-basis UI ([#41](https://github.com/ford442/gold_tracker/issues/41))
 - **E2E smoke** — `e2e/` + CI job ([#36](https://github.com/ford442/gold_tracker/issues/36))
-- **Backtesting & Scenario Lab** — `strategyEngine.ts` (mock ticks; real-tick replay still open)
+- **Backtesting & Scenario Lab** — `strategyEngine.ts` + `historicalTicks.ts` (CoinGecko replay with synthetic fallback)
+- **Observability** — `observability.ts`, `useObservability`, Settings → System Health & Diagnostics ([#49](https://github.com/ford442/gold_tracker/issues/49))
 - **Regime / fidelity** — `regime.ts`, Fidelity & Regimes tab
 - **Typed Supabase client** — `supabase.ts` + mock fallback ([#40](https://github.com/ford442/gold_tracker/issues/40))
 
@@ -30,10 +31,7 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 
 | Theme | Issue / track | Priority | Note |
 |-------|---------------|----------|------|
-| Observability | [#49](https://github.com/ford442/gold_tracker/issues/49) | P1 | Toasts + `OfflineBanner` only; no health/latency dashboard |
-| Historical backtests | — | P2 | `strategyMockTicks.ts` only; no CoinGecko tick replay |
 | Gemini trading | — | P2 | Quote-only today (`canTrade: false` in registry) |
-| `lint:strict` CI | — | P2 | ~52 violations; not a required CI gate yet |
 | WASM offload | [#32](https://github.com/ford442/gold_tracker/issues/32) | P3 | Deferred; web workers shipped ([#54](https://github.com/ford442/gold_tracker/issues/54)) |
 
 Issues [#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54) may show **closed** on GitHub while docs lagged — the table above reflects **`main` code**, not issue state.
@@ -74,7 +72,7 @@ flowchart TB
   FetchNews[fetch-news Edge Function] --> NewsFeed[NewsFeed]
 ```
 
-**Today on `main`:** the diagram above is largely implemented client-side. Gaps: observability UI, server-durable `orderStore` (journal is browser `localStorage`), Gemini execution adapter, and real-tick backtest seeding.
+**Today on `main`:** the diagram above is largely implemented client-side. Remaining gaps: Gemini execution adapter and optional WASM math offload ([#32](https://github.com/ford442/gold_tracker/issues/32)).
 
 ---
 

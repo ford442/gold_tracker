@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { usePriceStore } from '@/store/priceStore';
 import { ChartSkeleton } from './LoadingSkeleton';
+import { formatChartLabel } from '@lib/chartFormatters';
 import { getMarketChartSeries } from '@lib/marketCache';
 import {
   FISCAL_CALENDARS,
@@ -77,7 +78,7 @@ export function FiscalYearChart() {
     abortRef.current = controller;
     setIsLoading(true);
 
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
     getMarketChartSeries('pax-gold', 'max', 'daily', { signal: controller.signal, apiKey })
       .then((series) => {
         if (series.length >= 730) {
@@ -208,7 +209,7 @@ export function FiscalYearChart() {
                   wrapperStyle={{ color: 'var(--color-text)', paddingTop: '16px', fontSize: '0.72rem' }}
                   formatter={(value) => {
                     const cal = FISCAL_CALENDARS.find((c) => c.id === value);
-                    return cal ? `${cal.label} — ${cal.nations}` : value;
+                    return cal ? `${cal.label} — ${cal.nations}` : formatChartLabel(value);
                   }}
                 />
                 <ReferenceLine y={0} stroke="var(--color-border-strong)" strokeDasharray="4 4" />

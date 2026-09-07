@@ -116,7 +116,7 @@ export function rollingCorrelations(a: number[], b: number[], window = 30): numb
  * Returns a price array of same length as refPrices.
  */
 export function alignToRefLength(refLen: number, other: [number, number][]): number[] {
-  if (!other.length) return new Array(refLen).fill(0);
+  if (!other.length) return Array.from({ length: refLen }, () => 0);
   const oPrices = other.map(([, p]) => p);
   const out: number[] = [];
   for (let i = 0; i < refLen; i++) {

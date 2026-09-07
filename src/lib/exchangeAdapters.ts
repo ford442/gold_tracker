@@ -71,8 +71,8 @@ export interface ExchangeAdapter {
   ): Promise<import('./orderTypes').CancelOrderResult>;
 }
 
-const orderStatusStub = async (): Promise<OrderStatusResult> => ({ status: 'unknown' });
-const cancelStub = async (): Promise<CancelOrderResult> => ({
+const orderStatusStub = (): Promise<OrderStatusResult> => Promise.resolve({ status: 'unknown' });
+const cancelStub = (): Promise<CancelOrderResult> => Promise.resolve({
   success: false,
   error: 'Cancel is only available in server-secure mode for this venue',
 });
@@ -96,17 +96,13 @@ function makeAdapter(
     supportsPair: (productId) => configSupportsPair(id, productId),
     getBalances:
       overrides.getBalances ??
-      (async () => {
-        throw new Error(`${config.label} does not support client-side balance sync`);
-      }),
+      (() => Promise.reject(new Error(`${config.label} does not support client-side balance sync`))),
     placeOrder:
       overrides.placeOrder ??
-      (async () => {
-        throw new Error(`${config.label} trading is only available in server-secure mode`);
-      }),
+      (() => Promise.reject(new Error(`${config.label} trading is only available in server-secure mode`))),
     testConnection:
       overrides.testConnection ??
-      (async () => false),
+      (() => Promise.resolve(false)),
     getOrderStatus: overrides.getOrderStatus ?? orderStatusStub,
     cancelOrder: overrides.cancelOrder ?? cancelStub,
   };
@@ -142,12 +138,9 @@ const coinbaseAdapter = makeAdapter('coinbase', {
   },
 });
 
-// Kraken has no browser-side signing here (HMAC signing happens in the Edge
-// Function); local placeOrder/getBalances therefore route through server mode.
+// Kraken HMAC signing is server-side only; local Kraken trading is not implemented.
 const krakenAdapter = makeAdapter('kraken', {
-  async testConnection() {
-    return false;
-  },
+  testConnection: () => Promise.resolve(false),
 });
 
 const ADAPTERS: Partial<Record<ExchangeId, ExchangeAdapter>> = {

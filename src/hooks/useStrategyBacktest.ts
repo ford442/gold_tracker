@@ -113,7 +113,7 @@ export function useStrategyBacktest() {
             strategyType,
             arbAssets: [arbAsset1, arbAsset2],
             mrAsset,
-            apiKey: import.meta.env.VITE_COINGECKO_API_KEY as string | undefined,
+            apiKey: import.meta.env.VITE_COINGECKO_API_KEY,
           });
           ticks = fetchRes.ticks;
           if (fetchRes.isMock || fetchRes.source === 'synthetic_fallback') {
@@ -178,7 +178,7 @@ export function useStrategyBacktest() {
             range: historicalRange,
             strategyType: 'arbitrage',
             scenarioLabAssets: ['pax-gold', 'tether-gold', 'bitcoin', 'ethereum'],
-            apiKey: import.meta.env.VITE_COINGECKO_API_KEY as string | undefined,
+            apiKey: import.meta.env.VITE_COINGECKO_API_KEY,
           });
           if (fetchRes.isMock || fetchRes.source === 'synthetic_fallback') {
             setHistoricalFallbackNotice(

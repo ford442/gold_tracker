@@ -1,0 +1,19 @@
+---
+description: GoldTrackr architecture constraints for agents
+globs: src/**/*
+alwaysApply: true
+---
+
+# GoldTrackr architecture
+
+Follow the one-way data flow: pure logic in `src/lib/` → hooks in `src/hooks/` → Zustand stores in `src/store/` → thin UI in `src/components/`.
+
+## Non-negotiables
+
+- Add capability **pure-logic-first** with Vitest coverage for non-trivial `src/lib/` modules.
+- Components must **not** import `coinbaseTrader` directly — route execution through `executeOrderWithLifecycle` / `useOrderExecution`.
+- Market history must go through `getMarketChartSeries` in `src/lib/marketCache.ts` — never call CoinGecko chart APIs directly from UI/hooks.
+- Exchange fees, pairs, and capabilities come from `shared/exchanges.json` via `src/lib/exchanges.ts` — do not hardcode venue fees.
+- Edge Functions live under `supabase/functions/` and are validated with `npm run check:edge` (Deno lint + typecheck), not ESLint.
+
+Full project guide: [AGENTS.md](../AGENTS.md)

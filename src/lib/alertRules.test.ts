@@ -99,7 +99,7 @@ describe('evaluateSpreadRule', () => {
 
   it('does not trigger below threshold', () => {
     const ctx = baseCtx();
-    ctx.prices['tether-gold']!.price = 3301;
+    ctx.prices['tether-gold'].price = 3301;
     const rule: SpreadAlertRule = { ...createDefaultSpreadRule(), thresholdPct: 1 };
     expect(evaluateSpreadRule(rule, ctx).triggered).toBe(false);
   });
@@ -109,7 +109,7 @@ describe('evaluatePriceCrossRule', () => {
   it('fires on level cross', () => {
     const ctx = baseCtx();
     ctx.previousPrices = { 'pax-gold': 3295 };
-    ctx.prices['pax-gold']!.price = 3305;
+    ctx.prices['pax-gold'].price = 3305;
     const rule: PriceCrossAlertRule = {
       ...createDefaultSpreadRule(),
       type: 'price_cross',

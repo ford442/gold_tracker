@@ -44,11 +44,11 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 - [x] **Trade & connectivity observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — pure ring buffer telemetry (`observability.ts`), summary metrics, `useObservability`, and `SystemObservabilityPanel` in Settings
 - [x] **Historical backtests on real market data** — `lib/historicalTicks.ts` (7d/30d/90d) + `DataSourceSelector.tsx` + `marketCache` integration with synthetic fallback
 - [x] **Docs truth refresh** ([#51](https://github.com/ford442/gold_tracker/issues/51)) — this document + [docs/ROADMAP.md](docs/ROADMAP.md) + [AGENTS.md](AGENTS.md) + [docs/SHIPPED.md](docs/SHIPPED.md)
+- [x] **`lint:strict` CI gate** — all nine type-safety rules green; required in CI `quality` job + `npm run typecheck` / `npm run check:edge`
 
 ### Remaining ▢ (verified gaps only)
 
 - [ ] **Gemini live trading** — Gemini is quote-only in `shared/exchanges.json` (`canTrade: false`); no `ExchangeAdapter` or Edge execution path
-- [ ] **`lint:strict` CI gate** — ~52 `ESLINT_STRICT=1` violations remain; aspirational gate not wired into CI
 - [ ] **WASM analytics offload** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — deferred; web workers shipped instead ([#54](https://github.com/ford442/gold_tracker/issues/54))
 
 **Mock vs live vs shipped (on `main` today):**
@@ -88,7 +88,7 @@ When a feature ships, move it from Remaining → Done here and check the box in 
 | [#38](https://github.com/ford442/gold_tracker/issues/38) WebSocket | Superseded | [#48](https://github.com/ford442/gold_tracker/issues/48) shipped | `lib/priceTransport.ts` + `useGoldPrices` + Settings Data Feed |
 | [#33](https://github.com/ford442/gold_tracker/issues/33) multi-venue | Phase A label | [#45](https://github.com/ford442/gold_tracker/issues/45), [#47](https://github.com/ford442/gold_tracker/issues/47), [#53](https://github.com/ford442/gold_tracker/issues/53) shipped | `shared/registry.ts`, `executeOrder.ts`, `venueQuoteFanout.ts` |
 | [#32](https://github.com/ford442/gold_tracker/issues/32) WASM perf | Deferred | [#54](https://github.com/ford442/gold_tracker/issues/54) workers shipped | `src/workers/analyticsWorker.ts`, `lib/workerClient.ts` |
-| [#46](https://github.com/ford442/gold_tracker/issues/46) order lifecycle | Closed on GitHub | **Client shipped**; server journal remaining | `orderLifecycle.ts`, `orderStore`, `useOrderReconciliation`, `OrderHistoryPanel` |
+| [#46](https://github.com/ford442/gold_tracker/issues/46) order lifecycle | Closed on GitHub | **Shipped** (client + server journal sync) | `orderLifecycle.ts`, `orderStore`, `useOrderReconciliation`, `useOrderSync`, `OrderHistoryPanel` |
 | [#45](https://github.com/ford442/gold_tracker/issues/45) registry | Closed on GitHub | **Shipped** | `shared/exchanges.json`, Edge `_shared/registry.ts` |
 | [#47](https://github.com/ford442/gold_tracker/issues/47) adapters | Closed on GitHub | **Shipped** | `executeOrderWithLifecycle` → `getAdapter()`; no direct `coinbaseTrader` from UI |
 | [#48](https://github.com/ford442/gold_tracker/issues/48) WebSocket transport | Closed on GitHub | **Shipped** | `priceTransportMode` in settings; `createPriceTransport` in `useGoldPrices` |
@@ -103,15 +103,12 @@ When in doubt, read [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/S
 
 ## 2. Trading-Proficiency Assessment (updated)
 
-GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies (mock ticks), stress-test a portfolio, practice via the paper ledger, stream or poll live prices, enforce pre-trade risk limits, and reconcile orders after outages — all with a client-side order journal. What separates it from a *proficient* OMS is primarily **server-durable order history**, **operational observability**, and **real-tick backtests** — not the absence of execution, risk gates, or streaming data.
+GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies on real CoinGecko ticks (with synthetic fallback), stress-test a portfolio, practice via the paper ledger, stream or poll live prices, enforce pre-trade risk limits, reconcile orders after outages, sync a durable Postgres order journal, and inspect trade/connectivity health in Settings. What separates it from a *proficient* multi-venue OMS is primarily **Gemini execution** and optional **WASM math offload** — not the absence of execution, risk gates, observability, or streaming data.
 
 Prioritized path to close the remaining gap:
 
-1. **Observability** ([#49](https://github.com/ford442/gold_tracker/issues/49)) — API health, trade-failure history, latency / cache metrics
-2. **Server-side order journal** — durable Postgres journal + multi-device replay (extend `trade_logs` / Edge)
-3. **Historical backtests** — CoinGecko tick replay into `strategyEngine` (replace mock-only Classic Backtest seed)
-4. **Gemini trading** — adapter + Edge path for venues marked `canTrade: true`
-5. **`lint:strict` in CI** — burn down remaining type-safety violations
+1. **Gemini trading** — adapter + Edge path for venues marked `canTrade: true`
+2. **WASM analytics offload** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — optional; web workers shipped ([#54](https://github.com/ford442/gold_tracker/issues/54))
 
 ---
 
@@ -129,4 +126,4 @@ Keep the strategy engine, regime math, fee helpers, and API clients free of Reac
 
 ### Conclusion
 
-GoldTrackr has grown from a read-only dashboard into a working personal trading terminal with execution, risk gates, client order lifecycle, streaming prices, a backend, backtesting, paper trading, regime analytics, and cross-venue arbitrage monitoring. The remaining work is **OMS hardening and ops** — observability ([#49](https://github.com/ford442/gold_tracker/issues/49)), server-durable journals, real-tick backtests, and Gemini execution. See [docs/ROADMAP.md](docs/ROADMAP.md) for the navigable summary. Update this document and [docs/SHIPPED.md](docs/SHIPPED.md) as those items ship.
+GoldTrackr has grown from a read-only dashboard into a working personal trading terminal with execution, risk gates, order lifecycle (client + server journal sync), observability diagnostics, streaming prices, a backend, real-tick backtesting, paper trading, regime analytics, and cross-venue arbitrage monitoring. The remaining work is **Gemini execution** and optional **WASM offload**. See [docs/ROADMAP.md](docs/ROADMAP.md) for the navigable summary. Update this document and [docs/SHIPPED.md](docs/SHIPPED.md) as those items ship.

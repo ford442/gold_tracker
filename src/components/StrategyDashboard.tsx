@@ -222,7 +222,7 @@ export function StrategyDashboard() {
         </div>
 
         <button
-          onClick={handleRunBacktest}
+          onClick={() => { void handleRunBacktest(); }}
           disabled={isRunning}
           style={{
             width: '100%',

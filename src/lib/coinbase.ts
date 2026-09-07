@@ -17,7 +17,7 @@ async function importPrivateKey(privateKeyPem: string): Promise<CryptoKey> {
   if (isPkcs8) {
     // PKCS#8 — jose.importPKCS8 returns a CryptoKey in the browser
     const key = await jose.importPKCS8(privateKeyPem, 'ES256');
-    return key as CryptoKey;
+    return key;
   }
 
   // SEC1 EC key (-----BEGIN EC PRIVATE KEY-----).

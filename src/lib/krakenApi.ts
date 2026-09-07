@@ -10,6 +10,8 @@ import {
   roundTripPaxgXautFeeBps,
 } from './exchanges';
 
+export { buildKrakenFormBody, signKrakenPrivateRequest } from './krakenSign';
+
 export interface KrakenOrder {
   pair: string;           // e.g., "PAXGUSD", "XAUTUSD", "PAXGXAUT"
   type: 'buy' | 'sell';
@@ -23,26 +25,6 @@ export interface KrakenOrderResult {
   orderId?: string;
   error?: string;
   description?: string;
-}
-
-// Kraken uses HMAC-SHA512 for authentication
-// This function is for reference - actual signing happens in Edge Functions
-export function createKrakenSignature(
-  _apiSecret: string,
-  _path: string,
-  nonce: string,
-  postData: Record<string, unknown>
-): string {
-  const message = nonce + JSON.stringify(postData);
-  
-  // In browser/Deno: use crypto.subtle for proper HMAC-SHA512
-  // This is a simplified placeholder - real implementation in Edge Function
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  
-  // Return base64 encoded signature
-  // Note: Real implementation needs crypto.subtle.sign with HMAC-SHA512
-  return btoa(String.fromCharCode(...new Uint8Array(data.slice(0, 64))));
 }
 
 // Trading pair mapping for Kraken — sourced from shared/exchanges.json

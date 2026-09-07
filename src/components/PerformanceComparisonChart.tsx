@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
+import { formatSignedPercent } from '@lib/chartFormatters';
 import { ASSETS, PERFORMANCE_COMPARISON_ASSET_IDS } from '@lib/assets';
 import { getMarketChartSeries } from '@lib/marketCache';
 import { ChartSkeleton } from './LoadingSkeleton';
@@ -22,7 +23,7 @@ export function PerformanceComparisonChart() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     const loadData = async () => {
       try {
@@ -141,7 +142,7 @@ export function PerformanceComparisonChart() {
                   color: 'var(--color-text)',
                   boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
                 }}
-                formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
+                formatter={(value) => [formatSignedPercent(value), '']}
               />
               <Legend 
                 wrapperStyle={{ color: 'var(--color-text)', paddingTop: '20px' }}

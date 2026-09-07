@@ -35,17 +35,17 @@ export function createMockSupabaseClient(): AppSupabaseClient {
 
   return {
     auth: {
-      getUser: async (): Promise<AuthUserResult> => ({
+      getUser: (): Promise<AuthUserResult> => Promise.resolve({
         data: { user: null },
         error: null,
       }),
-      getSession: async (): Promise<AuthSessionResult> => ({
+      getSession: (): Promise<AuthSessionResult> => Promise.resolve({
         data: { session: null },
         error: null,
       }),
-      signInWithPassword: async (): Promise<AuthCredentialsResult> => authDisabledResult(),
-      signUp: async (): Promise<AuthCredentialsResult> => authDisabledResult(),
-      signOut: async () => ({ error: null }),
+      signInWithPassword: (): Promise<AuthCredentialsResult> => Promise.resolve(authDisabledResult()),
+      signUp: (): Promise<AuthCredentialsResult> => Promise.resolve(authDisabledResult()),
+      signOut: () => Promise.resolve({ error: null }),
       onAuthStateChange: (callback: AuthStateChangeCallback) => {
         listeners.add(callback);
         return {
@@ -60,39 +60,38 @@ export function createMockSupabaseClient(): AppSupabaseClient {
       },
     },
     functions: {
-      invoke: async <T = unknown>(): Promise<FunctionsInvokeResult<T>> => functionsDisabledResult<T>(),
+      invoke: <T = unknown>(): Promise<FunctionsInvokeResult<T>> => Promise.resolve(functionsDisabledResult<T>()),
     },
     from: <T = unknown>(_table: string) => ({
       select: (_columns?: string) => ({
         eq: (_column: string, _value: unknown) => ({
           order: (_col: string, _options?: { ascending?: boolean }) => ({
-            limit: async (_count: number) => ({ data: [] as T[], error: null }),
+            limit: (_count: number) => Promise.resolve({ data: [] as T[], error: null }),
           }),
         }),
         order: (_col: string, _options?: { ascending?: boolean }) => ({
-          limit: async (_count: number) => ({ data: [] as T[], error: null }),
+          limit: (_count: number) => Promise.resolve({ data: [] as T[], error: null }),
         }),
       }),
-      upsert: async (_values: unknown, _options?: { onConflict?: string; ignoreDuplicates?: boolean }) => ({
-        data: null as T | null,
-        error: null,
+      upsert: (_values: unknown, _options?: { onConflict?: string; ignoreDuplicates?: boolean }) =>
+        Promise.resolve({
+          data: null as T | null,
+          error: null,
+        }),
+      insert: (_values: unknown) =>
+        Promise.resolve({
+          data: null as T | null,
+          error: null,
+        }),
+      update: (_values: unknown) => ({
+        eq: (_column: string, _value: unknown) => {
+          const result = Promise.resolve({ data: null as T | null, error: null });
+          return Object.assign(result, {
+            eq: (_col2: string, _val2: unknown) =>
+              Promise.resolve({ data: null as T | null, error: null }),
+          });
+        },
       }),
-      insert: async (_values: unknown) => ({
-        data: null as T | null,
-        error: null,
-      }),
-      update: (_values: unknown) => {
-        const updatePromise = Promise.resolve({ data: null as T | null, error: null });
-        return {
-          eq: (_column: string, _value: unknown) => ({
-            ...updatePromise,
-            eq: async (_col2: string, _val2: unknown) => ({ data: null as T | null, error: null }),
-            then: updatePromise.then.bind(updatePromise),
-            catch: updatePromise.catch.bind(updatePromise),
-            finally: updatePromise.finally.bind(updatePromise),
-          }),
-        };
-      },
     }),
   };
 }

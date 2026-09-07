@@ -20,10 +20,10 @@ describe('venueQuoteFanout', () => {
 
   it('dedupes concurrent fetches', async () => {
     let calls = 0;
-    const fetcher = async (url: string) => {
+    const fetcher = (url: string) => {
       calls += 1;
       if (url.includes('coinbase')) {
-        return {
+        return Promise.resolve({
           pricebooks: [
             {
               product_id: 'PAXG-USD',
@@ -36,17 +36,17 @@ describe('venueQuoteFanout', () => {
               asks: [{ price: '2612' }],
             },
           ],
-        };
+        });
       }
       if (url.includes('kraken')) {
-        return {
+        return Promise.resolve({
           result: {
             PAXGUSD: { a: ['2601', '1'], b: ['2599', '1'] },
             XAUTUSD: { a: ['2611', '1'], b: ['2609', '1'] },
           },
-        };
+        });
       }
-      return { bid: '2598', ask: '2600' };
+      return Promise.resolve({ bid: '2598', ask: '2600' });
     };
 
     const [a, b] = await Promise.all([
@@ -61,9 +61,7 @@ describe('venueQuoteFanout', () => {
   });
 
   it('falls back to mock when all venue fetches fail', async () => {
-    const fetcher = async () => {
-      throw new Error('network down');
-    };
+    const fetcher = () => Promise.reject(new Error('network down'));
     const result = await getVenueGoldSnapshots({ fetcher, forceRefresh: true });
     expect(result.isMock).toBe(true);
     expect(result.errors.length).toBeGreaterThan(0);
@@ -71,10 +69,10 @@ describe('venueQuoteFanout', () => {
 
   it('serves cached result within TTL', async () => {
     let calls = 0;
-    const fetcher = async (url: string) => {
+    const fetcher = (url: string) => {
       calls += 1;
       if (url === COINBASE_BEST_BID_ASK_URL) {
-        return {
+        return Promise.resolve({
           pricebooks: [
             {
               product_id: 'PAXG-USD',
@@ -87,17 +85,17 @@ describe('venueQuoteFanout', () => {
               asks: [{ price: '2612' }],
             },
           ],
-        };
+        });
       }
       if (url.includes('kraken')) {
-        return {
+        return Promise.resolve({
           result: {
             PAXGUSD: { a: ['2601', '1'], b: ['2599', '1'] },
             XAUTUSD: { a: ['2611', '1'], b: ['2609', '1'] },
           },
-        };
+        });
       }
-      return { bid: '2598', ask: '2600' };
+      return Promise.resolve({ bid: '2598', ask: '2600' });
     };
 
     await getVenueGoldSnapshots({ fetcher, forceRefresh: true, ttlMs: 60_000 });

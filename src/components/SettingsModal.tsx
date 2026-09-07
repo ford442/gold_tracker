@@ -55,7 +55,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setOpenSection(openSection === section ? null : section);
   };
 
-  const handleTestConnection = async () => {
+  const runTestConnection = async () => {
     setTestStatus('loading');
     try {
       if (user) {
@@ -77,7 +77,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleSaveKeys = async () => {
+  const handleTestConnection = (): void => {
+    void runTestConnection();
+  };
+
+  const runSaveKeys = async () => {
     setSaveStatus('saving');
     try {
       if (user) {
@@ -104,6 +108,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       console.error('Failed to save keys:', err);
       setSaveStatus('error');
     }
+  };
+
+  const handleSaveKeys = (): void => {
+    void runSaveKeys();
   };
 
   const handleSignOut = async () => {

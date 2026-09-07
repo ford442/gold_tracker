@@ -22,7 +22,7 @@ export function useTradeReplayData(
     abortRef.current = controller;
 
     const { days, interval } = RANGE_PARAMS[range];
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     setIsLoadingHistory(true);
     setHistoricalData(null);

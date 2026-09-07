@@ -360,7 +360,7 @@ export function GlobalArbitrageMonitor() {
             <div style={{ flex: '1 1 220px', maxWidth: '320px' }}>
               <button
                 type="button"
-                onClick={handleExecuteArb}
+                onClick={() => { void handleExecuteArb(); }}
                 disabled={!isArbOpportunity || executing || !getExchangeConfig(selectedExchange)?.canTrade}
                 style={{
                   width: '100%',

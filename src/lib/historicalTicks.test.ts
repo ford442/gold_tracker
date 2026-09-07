@@ -162,13 +162,13 @@ describe('historicalTicks', () => {
 
   describe('fetchHistoricalBacktestTicks', () => {
     it('fetches and aligns arbitrage assets using injectable fetcher', async () => {
-      const mockFetcher: MarketFetcher = async (cgId) => {
+      const mockFetcher: MarketFetcher = (cgId) => {
         const base = cgId === 'pax-gold' ? 3280 : 3282;
-        return [
+        return Promise.resolve([
           [1_000_000, base],
           [2_000_000, base + 2],
           [3_000_000, base + 4],
-        ];
+        ]);
       };
 
       const res = await fetchHistoricalBacktestTicks({
@@ -189,12 +189,11 @@ describe('historicalTicks', () => {
     });
 
     it('fetches and aligns mean-reversion asset', async () => {
-      const mockFetcher: MarketFetcher = async (_cgId) => {
-        return [
+      const mockFetcher: MarketFetcher = (_cgId) =>
+        Promise.resolve([
           [1_000_000, 95000],
           [2_000_000, 95500],
-        ];
-      };
+        ]);
 
       const res = await fetchHistoricalBacktestTicks({
         range: '30d',
@@ -213,7 +212,7 @@ describe('historicalTicks', () => {
     });
 
     it('falls back to synthetic mock ticks when fetcher returns empty series', async () => {
-      const mockFetcher: MarketFetcher = async () => [];
+      const mockFetcher: MarketFetcher = () => Promise.resolve([]);
 
       const res = await fetchHistoricalBacktestTicks({
         range: '7d',
@@ -232,9 +231,9 @@ describe('historicalTicks', () => {
     });
 
     it('falls back to synthetic mock ticks when alignment yields 0 ticks', async () => {
-      const mockFetcher: MarketFetcher = async (cgId) => {
-        if (cgId === 'pax-gold') return [[1_000_000, 3280]];
-        return [[999_000_000, 3282]]; // Far in future -> gap exceeded
+      const mockFetcher: MarketFetcher = (cgId) => {
+        if (cgId === 'pax-gold') return Promise.resolve([[1_000_000, 3280]]);
+        return Promise.resolve([[999_000_000, 3282]]); // Far in future -> gap exceeded
       };
 
       const res = await fetchHistoricalBacktestTicks({
@@ -256,7 +255,7 @@ describe('historicalTicks', () => {
       const ctrl = new AbortController();
       ctrl.abort();
 
-      const mockFetcher: MarketFetcher = async () => [];
+      const mockFetcher: MarketFetcher = () => Promise.resolve([]);
 
       await expect(
         fetchHistoricalBacktestTicks({

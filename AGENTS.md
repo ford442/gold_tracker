@@ -277,7 +277,9 @@ ESLint uses `typescript-eslint` `recommendedTypeChecked`. Nine stricter rules ar
 | Command | Scope |
 |---------|--------|
 | `npm run lint` | Default CI lint. `src/lib/**`, `src/hooks/**`, `src/store/**`, and `src/components/**` enforce `no-floating-promises` and `no-unsafe-assignment`. |
-| `npm run lint:strict` | All nine gradual rules enabled repo-wide (`ESLINT_STRICT=1`). Aspirational future CI gate once clean — not wired into CI yet (~52 violations as of phase 4). |
+| `npm run lint:strict` | All nine gradual rules enabled repo-wide (`ESLINT_STRICT=1`). Required CI gate in the `quality` job. |
+| `npm run typecheck` | `tsc -b` — app, node tooling, and e2e configs. |
+| `npm run check:edge` | Deno lint + typecheck for `supabase/functions/**`. |
 
 **Import paths:** use `@/` for cross-directory imports (e.g. `@/types`, `@/lib/api`). Same-folder `./` imports in `lib/` remain fine.
 
@@ -618,9 +620,9 @@ npm run test:watch    # watch mode
 npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
 ```
 
-Coverage scope: `utils`, `regime`, `strategyEngine`, `krakenApi`, `metalprice`, `assets` (API client files excluded — see `vite.config.ts`).
+Coverage scope: pure `src/lib` modules in `vite.config.ts` `coverage.include` (utils, regime, strategyEngine, marketCache, order lifecycle, venue fanout, workerClient, etc.) plus `shared/registry.ts` (API client files excluded — see `vite.config.ts`).
 
-CI (`.github/workflows/ci.yml`) runs `npm run lint`, test, coverage, and build on every push and pull request to `main`. Merges are blocked when lint reports errors, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`. `npm run lint:strict` exists for the full type-safety gate but is not yet required in CI.
+CI (`.github/workflows/ci.yml`) runs `npm run lint`, `npm run lint:strict`, test, coverage, build, and a parallel `edge-functions` job (`npm run check:edge`). Merges are blocked when lint reports errors, strict lint fails, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`.
 
 On `main`, the same workflow uploads a `goldtrackr-dist` artifact and deploys via rsync over SSH (deploy key in `SSH_PRIVATE_KEY`; host/user/path in `SSH_HOST`, `SSH_USER`, `SSH_PATH`). Production builds use `base: './'` in `vite.config.ts` for subdirectory hosting — no post-build path rewrites.
 
@@ -636,7 +638,7 @@ Component-level tests are still out of scope; for other UI checks:
 
 > **Truth protocol.** GitHub **closed ≠ shipped**. Before assuming a module exists: (1) `git ls-tree origin/main -- <path>`, (2) confirm hook/UI imports (grep from `src/hooks/` or `src/components/`), (3) update [docs/SHIPPED.md](docs/SHIPPED.md) + `code_plan.md` Done/Remaining in the same PR. See [code_plan.md § Truth protocol](code_plan.md#truth-protocol-for-agents).
 
-- **Shipped vs open (check `main`).** Foundation issues ([#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54)) are largely **implemented on `main`** even when GitHub shows zero open issues. Use [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/SHIPPED.md), and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) — not issue state alone. Verified gaps today: observability ([#49](https://github.com/ford442/gold_tracker/issues/49)), server-durable order journal, Gemini trading, real-tick backtests, `lint:strict` CI.
+- **Shipped vs open (check `main`).** Foundation issues ([#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54)) are largely **implemented on `main`** even when GitHub shows zero open issues. Use [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/SHIPPED.md), and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) — not issue state alone. Verified gaps today: Gemini trading and WASM offload ([#32](https://github.com/ford442/gold_tracker/issues/32)).
 - Always maintain the existing dark-first theming approach
 - When adding new stores, use the persist middleware for data that should survive page reloads
 - Mock data is provided for all API calls to ensure the app works without API keys
@@ -650,7 +652,7 @@ Component-level tests are still out of scope; for other UI checks:
 - The strategy engine is pure TypeScript with no React imports — keep it that way
 - Coinbase balance sync integrates with the portfolio store via `syncCoinbaseBalances`
 - **News path.** `useNews` → `services/newsService.fetchLiveNews` invokes the `fetch-news` Edge Function when Supabase is configured; otherwise mock/demo items (legacy `api.fetchGoldNews` delegates here). `NewsFeed` shows source badges and mock indicator.
-- **Paper / dry-run / live journal.** When `dryRun` is on, `executeOrderWithLifecycle` records a simulated fill (`buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` **and** a journal row in `orderStore` (`mode: 'paper'`). Live orders (`dryRun` off) pass `riskEngine` checks first, route through adapters or Edge, and append to the same client journal. Reconciliation runs from `App.tsx` via `useOrderReconciliation`. Keep LIVE (🚀) vs PAPER (🧪) explicit in trading UI. Journal is **browser-local** today — not server-durable. Paper P&L / equity curve / CSV export come from `lib/paperTrade.ts`.
+- **Paper / dry-run / live journal.** When `dryRun` is on, `executeOrderWithLifecycle` records a simulated fill (`buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` **and** a journal row in `orderStore` (`mode: 'paper'`). Live orders (`dryRun` off) pass `riskEngine` checks first, route through adapters or Edge, and append to the same client journal. Reconciliation runs from `App.tsx` via `useOrderReconciliation`; multi-device sync via `useOrderSync` + Postgres `order_journal`. Keep LIVE (🚀) vs PAPER (🧪) explicit in trading UI. Paper P&L / equity curve / CSV export come from `lib/paperTrade.ts`.
 - All chart components use Recharts with `isAnimationActive={false}` for performance
 - **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal, apiKey })`. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
@@ -663,5 +665,5 @@ Component-level tests are still out of scope; for other UI checks:
 - Single Vite + React frontend; no backend service needs to run locally. Standard commands live in `package.json` / README (`npm run dev`, `npm run build`, `npm run lint`, `npm run preview`). Dependencies are refreshed by the startup update script (`npm ci`).
 - No secrets/API keys are required: the app falls back to realistic mock data when `VITE_*` keys are absent (see `src/lib/api.ts`), so the dashboard, portfolio, correlations, and backtests are all fully usable for dev/testing without any `.env.local`.
 - `npm run dev` serves on `http://localhost:5173/`. Vite is not bound with `--host` by default, so it only listens on localhost — pass `npm run dev -- --host` if you need to reach it from outside the VM.
-- Validate changes via `npm run lint`, `npm test`, `npm run build`, and manual browser testing of the dev server. CI also runs `npm run test:coverage` with thresholds on pure `src/lib` modules. Use `npm run lint:strict` locally when touching code outside `src/lib/` to gauge remaining type-safety debt.
+- Validate changes via `npm run lint`, `npm run lint:strict`, `npm test`, `npm run test:coverage`, `npm run build`, `npm run typecheck`, and `npm run check:edge` when touching Edge Functions.
 - `npm run lint` currently emits one pre-existing `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx` (0 errors) — that warning is expected, not something you introduced.

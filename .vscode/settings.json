@@ -1,0 +1,10 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "eslint.useFlatConfig": true,
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "vitest.enable": true,
+  "vitest.rootConfig": "vite.config.ts",
+  "editor.formatOnSave": false,
+  "tailwindCSS.experimental.configFile": null
+}

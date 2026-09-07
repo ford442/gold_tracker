@@ -3,7 +3,6 @@ import {
   KRAKEN_PAIRS,
   KRAKEN_PAIRS_REVERSE,
   calculateKrakenSavings,
-  createKrakenSignature,
   hasDirectPaxgXautPair,
 } from './krakenApi';
 
@@ -39,15 +38,5 @@ describe('calculateKrakenSavings', () => {
     expect(result.coinbaseCost).toBeCloseTo(12, 5);
     expect(result.krakenCost).toBeCloseTo(2.6, 5);
     expect(result.savings).toBeCloseTo(9.4, 5);
-  });
-});
-
-describe('createKrakenSignature', () => {
-  it('returns a base64 string from message bytes', () => {
-    const sig = createKrakenSignature('secret', '/path', '12345', { pair: 'PAXGUSD' });
-    expect(typeof sig).toBe('string');
-    expect(sig.length).toBeGreaterThan(0);
-    // base64 charset
-    expect(sig).toMatch(/^[A-Za-z0-9+/=]+$/);
   });
 });

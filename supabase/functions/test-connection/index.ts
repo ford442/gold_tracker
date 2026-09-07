@@ -6,6 +6,10 @@ import {
   isLiveTradingExchange,
   liveTradingExchangeLabels,
 } from '../_shared/registry.ts'
+import {
+  buildKrakenFormBody,
+  signKrakenPrivateRequest,
+} from '../_shared/krakenSign.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,15 +124,18 @@ serve(async (req: Request) => {
       // Test Kraken connection
       const nonce = Date.now().toString()
       const path = '/0/private/Balance'
-      
+      const params = { nonce }
+      const postBody = buildKrakenFormBody(params)
+      const apiSign = await signKrakenPrivateRequest(keys.krakenApiSecret, path, nonce, postBody)
+
       const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
         method: 'POST',
         headers: {
           'API-Key': keys.krakenApiKey,
-          'API-Sign': createKrakenSignature(keys.krakenApiSecret, path, nonce, { nonce }),
+          'API-Sign': apiSign,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({ nonce }),
+        body: postBody,
       })
       
       const data = await response.json()
@@ -181,15 +188,4 @@ async function createCoinbaseJWT(keyName: string, privateKeyPem: string, method:
   return await new jose.SignJWT(payload)
     .setProtectedHeader({ alg: 'ES256', typ: 'JWT', kid: keyName })
     .sign(privateKey)
-}
-
-function createKrakenSignature(apiSecret: string, _path: string, nonce: string, postData: Record<string, unknown>): string {
-  const message = nonce + JSON.stringify(postData)
-  
-  // Note: Full HMAC-SHA512 implementation would go here using apiSecret
-  // const secret = Uint8Array.from(atob(apiSecret), c => c.charCodeAt(0))
-  const encoder = new TextEncoder()
-  const data = encoder.encode(message)
-  
-  return btoa(String.fromCharCode(...new Uint8Array(data.slice(0, 64))))
 }

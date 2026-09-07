@@ -319,7 +319,7 @@ export function ApiKeysForm({
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '16px' }}>
         <button
-          onClick={onTestConnection}
+          onClick={() => { void onTestConnection(); }}
           disabled={testStatus === 'loading'}
           style={{
             padding: '8px 16px',
@@ -336,7 +336,7 @@ export function ApiKeysForm({
         </button>
 
         <button
-          onClick={onSaveKeys}
+          onClick={() => { void onSaveKeys(); }}
           disabled={saveStatus === 'saving'}
           style={{
             padding: '8px 16px',

@@ -67,7 +67,7 @@ export function AlertRulesSettingsPanel() {
             {perm === 'default' && (
               <button
                 type="button"
-                onClick={handleRequestPermission}
+                onClick={() => { void handleRequestPermission(); }}
                 style={{
                   padding: '8px 14px',
                   borderRadius: 'var(--radius-sm)',

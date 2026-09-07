@@ -8,6 +8,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  edge-functions:
+    name: Edge Functions (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Lint and typecheck edge functions
+        run: npm run check:edge
+
   e2e:
     name: E2E smoke (Playwright)
     runs-on: ubuntu-latest
@@ -59,6 +74,9 @@ jobs:
       # Fails on errors only; 1 known warning in StrategyDashboard.tsx (react-hooks/exhaustive-deps).
       - name: Lint
         run: npm run lint
+
+      - name: Lint (strict type-safety)
+        run: npm run lint:strict
 
       - name: Test
         run: npm test

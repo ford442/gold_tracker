@@ -9,6 +9,10 @@ import {
   resolveVenuePair,
   supportsPair,
 } from '../_shared/registry.ts'
+import {
+  buildKrakenFormBody,
+  signKrakenPrivateRequest,
+} from '../_shared/krakenSign.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +45,7 @@ serve(async (req: Request) => {
   }
 
   const body = await req.json()
-  const { order, dryRun = true, testOnly = false, exchange = 'coinbase', action, orderId, productId } = body
+  const { order, dryRun = true, testOnly = false, exchange = 'coinbase', action, orderId, productId: _productId } = body
 
   // Validate exchange
   if (!isLiveTradingExchange(exchange)) {
@@ -107,7 +111,8 @@ serve(async (req: Request) => {
         }
         if (status.filledQty !== undefined) updatePayload.filled_qty = status.filledQty
         if (status.avgFillPrice !== undefined) updatePayload.avg_fill_price = status.avgFillPrice
-        if (status.feeUsd !== undefined) updatePayload.fee_usd = status.feeUsd
+        const statusExtras = status as { feeUsd?: number }
+        if (statusExtras.feeUsd !== undefined) updatePayload.fee_usd = statusExtras.feeUsd
         if (status.error) updatePayload.error = status.error
         if (status.status === 'needs_attention') {
           updatePayload.needs_attention = true
@@ -188,7 +193,14 @@ serve(async (req: Request) => {
   const idempotencyKey = body.idempotencyKey || body.idempotency_key || `${exchange}:${order?.product_id}:${order?.side}:${source}:${requestedQty}`
   const nowIso = new Date().toISOString()
 
-  let result
+  let result: {
+    success: boolean
+    order_id?: string
+    message?: string
+    error?: string
+    exchange?: string
+    order?: Record<string, unknown>
+  }
   if (dryRun) {
     result = {
       success: true,
@@ -225,10 +237,10 @@ serve(async (req: Request) => {
       console.error('[place-trade] Failed upserting paper order_journal:', journalErr)
     }
   } else {
-    result = exchange === 'kraken'
+    const liveResult = exchange === 'kraken'
       ? await placeKrakenOrder(order, decrypted.krakenApiKey, decrypted.krakenApiSecret)
       : await placeCoinbaseOrder(order, decrypted.cdpKeyName, decrypted.cdpPrivateKey)
-    result.exchange = exchange
+    result = { ...liveResult, exchange }
 
     try {
       await supabase.from('order_journal').upsert({
@@ -324,34 +336,22 @@ async function placeCoinbaseOrder(order: Record<string, unknown>, keyName: strin
 
 // ============== KRAKEN FUNCTIONS ==============
 
-function createKrakenSignature(apiSecret: string, path: string, nonce: string, postData: Record<string, unknown>) {
-  // Full HMAC-SHA512 implementation needed for production
-  // Kraken: HMAC-SHA512(path + SHA256(nonce + postData))
-  const message = nonce + JSON.stringify(postData)
-  const secret = Uint8Array.from(atob(apiSecret), c => c.charCodeAt(0))
-  
-  // Placeholder - production should implement proper HMAC-SHA512
-  void message;
-  void secret;
-  void path;
-  
-  return btoa(String.fromCharCode(...new Uint8Array(64)))
-}
-
 async function testKrakenConnection(apiKey: string, apiSecret: string): Promise<boolean> {
   try {
     const nonce = Date.now().toString()
     const path = '/0/private/Balance'
-    
-    // For testing, just check if we can get account balance
+    const params = { nonce }
+    const postBody = buildKrakenFormBody(params)
+    const apiSign = await signKrakenPrivateRequest(apiSecret, path, nonce, postBody)
+
     const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
         'API-Key': apiKey,
-        'API-Sign': createKrakenSignature(apiSecret, path, nonce, { nonce }),
+        'API-Sign': apiSign,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({ nonce }),
+      body: postBody,
     })
     
     const data = await response.json()
@@ -380,15 +380,17 @@ async function placeKrakenOrder(
       volume: (order.order_configuration as Record<string, { base_size: string }>)?.market_market_ioc?.base_size || '0.1',
       pair: krakenPair,
     }
+    const postBody = buildKrakenFormBody(postData)
+    const apiSign = await signKrakenPrivateRequest(apiSecret, path, nonce, postBody)
 
     const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
         'API-Key': apiKey,
-        'API-Sign': createKrakenSignature(apiSecret, path, nonce, postData),
+        'API-Sign': apiSign,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams(postData),
+      body: postBody,
     })
 
     const data = await response.json()
@@ -476,14 +478,16 @@ async function getKrakenOrderStatus(orderId: string, apiKey: string, apiSecret: 
     const nonce = Date.now().toString()
     const path = '/0/private/QueryOrders'
     const postData = { nonce, txid: orderId }
+    const postBody = buildKrakenFormBody(postData)
+    const apiSign = await signKrakenPrivateRequest(apiSecret, path, nonce, postBody)
     const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
         'API-Key': apiKey,
-        'API-Sign': createKrakenSignature(apiSecret, path, nonce, postData),
+        'API-Sign': apiSign,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({ nonce, txid: orderId }),
+      body: postBody,
     })
     const data = await response.json()
     if (data.error?.length) {
@@ -513,14 +517,16 @@ async function cancelKrakenOrder(orderId: string, apiKey: string, apiSecret: str
     const nonce = Date.now().toString()
     const path = '/0/private/CancelOrder'
     const postData = { nonce, txid: orderId }
+    const postBody = buildKrakenFormBody(postData)
+    const apiSign = await signKrakenPrivateRequest(apiSecret, path, nonce, postBody)
     const response = await fetch(`${KRAKEN_BASE_URL}${path}`, {
       method: 'POST',
       headers: {
         'API-Key': apiKey,
-        'API-Sign': createKrakenSignature(apiSecret, path, nonce, postData),
+        'API-Sign': apiSign,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({ nonce, txid: orderId }),
+      body: postBody,
     })
     const data = await response.json()
     if (data.error?.length) {

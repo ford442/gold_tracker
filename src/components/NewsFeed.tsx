@@ -56,7 +56,7 @@ export function NewsFeed() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === 'true');
   const [readItems, setReadItems] = useState<Set<string>>(() => {
     const stored = localStorage.getItem('goldtrackr-news-read');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
   });
 
   // Categorize news items
@@ -160,7 +160,7 @@ export function NewsFeed() {
               </div>
             </div>
             <button
-              onClick={refetch}
+              onClick={() => { void refetch(); }}
               disabled={loading}
               style={{
                 padding: '6px 12px',

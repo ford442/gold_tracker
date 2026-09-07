@@ -87,7 +87,7 @@ async function fetchVenueLegs(
       const json = await fetcher(GEMINI_PAXG_TICKER_URL, signal);
       return { legs: parseGeminiPubTicker(json, ts, 'live') };
     }
-    return { legs: {}, error: `Unsupported venue: ${venueId}` };
+    return { legs: {}, error: `Unsupported venue: ${String(venueId)}` };
   } catch (err) {
     return {
       legs: {},

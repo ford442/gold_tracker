@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "lint:strict": "ESLINT_STRICT=1 eslint .",
+    "typecheck": "tsc -b",
+    "check:edge": "deno lint supabase/functions && cd supabase/functions && deno check place-trade/index.ts test-connection/index.ts store-key/index.ts fetch-news/index.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

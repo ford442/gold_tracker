@@ -66,8 +66,8 @@ class AbortError extends Error {
 }
 
 /** A rejected promise carrying an AbortError (throw form keeps the lint rule happy). */
-async function rejectedAbort(): Promise<never> {
-  throw new AbortError();
+function rejectedAbort(): Promise<never> {
+  return Promise.reject(new AbortError());
 }
 
 /** Reject if/when the caller's signal aborts, without disturbing the shared fetch. */

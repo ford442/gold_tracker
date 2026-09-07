@@ -41,6 +41,10 @@ export function TradeSuggestionsPanel() {
   const { executingId, handleExecuteTrade, dryRun: execDryRun, selectedExchange: execExchange } =
     useTradeExecution({ onKrakenAuthRequired: () => setShowSettings(true) });
 
+  const onExecuteTrade = (suggestion: Parameters<typeof handleExecuteTrade>[0]): void => {
+    void handleExecuteTrade(suggestion);
+  };
+
   useEffect(() => {
     initAuth();
   }, [initAuth]);
@@ -85,7 +89,7 @@ export function TradeSuggestionsPanel() {
               selectedExchange={execExchange}
               executingId={executingId}
               dryRun={execDryRun}
-              onExecute={handleExecuteTrade}
+              onExecute={onExecuteTrade}
             />
           ))}
         </div>

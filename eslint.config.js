@@ -34,6 +34,7 @@ const phasedTypeSafetyFiles = [
   'src/components/**/*.{ts,tsx}',
 ]
 
+/** @type {import('eslint').Linter.RulesRecord} */
 const phasedTypeSafetyRules = {
   '@typescript-eslint/no-floating-promises': 'error',
   '@typescript-eslint/no-unsafe-assignment': 'error',

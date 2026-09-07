@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { usePriceStore } from '@/store/priceStore';
 import { formatPrice, formatPercent } from '@lib/utils';
+import { formatSignedPercent } from '@lib/chartFormatters';
 import type { MetalSpot } from '@/types';
 import { CardSkeleton } from './LoadingSkeleton';
 import { usePriceFlash } from '@/hooks/usePriceFlash';
@@ -328,7 +329,7 @@ export function PreciousMetalsPanel() {
                     borderRadius: 'var(--radius-md)',
                     color: 'var(--color-text)',
                   }}
-                  formatter={(value) => [`${Number(value) >= 0 ? '+' : ''}${value}%`, '']}
+                  formatter={(value) => [formatSignedPercent(value), '']}
                 />
                 <Legend wrapperStyle={{ color: 'var(--color-text)', paddingTop: '16px' }} />
                 {chartLines.map((l) => (

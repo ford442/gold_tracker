@@ -6,6 +6,7 @@ import {
 import { usePriceStore } from '@/store/priceStore';
 import { ChartSkeleton } from '@/components/LoadingSkeleton';
 import { pearsonCorrelation } from '@lib/utils';
+import { formatChartLabel } from '@lib/chartFormatters';
 import { getMarketChartSeries } from '@lib/marketCache';
 import type { ChartRange } from '@/types';
 import {
@@ -40,7 +41,7 @@ export function OverlayTab() {
     setOverlayData([]);
 
     const { days, interval } = RANGE_PARAMS[currentRange];
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     const cgInstruments = OVERLAY_INSTRUMENTS.filter((i) => i.cgId !== null);
     const results: Record<string, [number, number][]> = {};
@@ -50,14 +51,14 @@ export function OverlayTab() {
 
     const fetches = cgInstruments.map(async (inst) => {
       try {
-        const series = await getMarketChartSeries(inst.cgId!, days, interval, {
+        const series = await getMarketChartSeries(inst.cgId, days, interval, {
           signal: controller.signal,
           apiKey,
         });
-        results[inst.id] = series.length ? series : sparklineFallback(inst.cgId!);
+        results[inst.id] = series.length ? series : sparklineFallback(inst.cgId);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') throw err;
-        results[inst.id] = sparklineFallback(inst.cgId!);
+        results[inst.id] = sparklineFallback(inst.cgId);
       }
     });
 
@@ -171,8 +172,8 @@ export function OverlayTab() {
               key={inst.id}
               label={inst.label}
               color={inst.color}
-              active={activeInstruments.has(inst.id as InstrumentId)}
-              onToggle={() => toggleInstrument(inst.id as InstrumentId)}
+              active={activeInstruments.has(inst.id)}
+              onToggle={() => toggleInstrument(inst.id)}
             />
           ))}
         </div>
@@ -229,11 +230,11 @@ export function OverlayTab() {
               />
               <Legend
                 wrapperStyle={{ color: 'var(--color-text)', paddingTop: '16px', fontSize: '0.72rem' }}
-                formatter={(value) => OVERLAY_INSTRUMENTS.find((i) => i.id === value)?.label ?? value}
+                formatter={(value) => OVERLAY_INSTRUMENTS.find((i) => i.id === value)?.label ?? formatChartLabel(value)}
               />
               <ReferenceLine y={0} stroke="var(--color-border-strong)" strokeDasharray="4 4" />
               {OVERLAY_INSTRUMENTS.map((inst) =>
-                activeInstruments.has(inst.id as InstrumentId) ? (
+                activeInstruments.has(inst.id) ? (
                   <Line
                     key={inst.id}
                     type="monotone"
@@ -261,7 +262,7 @@ export function OverlayTab() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
           gap: '8px',
         }}>
-          {OVERLAY_INSTRUMENTS.filter((i) => activeInstruments.has(i.id as InstrumentId)).map((inst) => {
+          {OVERLAY_INSTRUMENTS.filter((i) => activeInstruments.has(i.id)).map((inst) => {
             const lastPt = overlayData[overlayData.length - 1];
             const val = lastPt ? (lastPt[inst.id] as number | undefined) : undefined;
             const pct = val ?? 0;

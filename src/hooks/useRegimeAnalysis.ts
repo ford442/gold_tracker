@@ -49,7 +49,7 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY as string | undefined;
+    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     setLoading(true);
     setError(null);

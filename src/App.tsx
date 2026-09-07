@@ -85,7 +85,7 @@ function App() {
       }
       if (key === 'r') {
         clearMarketCache(); // bust cached history so R refreshes prices + charts
-        refetch();
+        void refetch();
         return;
       }
       if (key === 's') {

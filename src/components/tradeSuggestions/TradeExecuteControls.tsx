@@ -28,7 +28,7 @@ export function TradeExecuteControls({
       }}
     >
       <button
-        onClick={() => onExecute(suggestion)}
+        onClick={() => { void onExecute(suggestion); }}
         disabled={isExecuting || blocked}
         title={blocked ? (suggestion.regimeReason ?? 'Regime gate blocked') : undefined}
         style={{
