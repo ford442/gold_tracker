@@ -18,6 +18,7 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 - **Multi-venue arb** — `venueQuoteFanout.ts` + `GlobalArbitrageMonitor` (Coinbase, Kraken, Gemini quote-only) ([#53](https://github.com/ford442/gold_tracker/issues/53))
 - **News proxy** — `fetch-news` Edge Function + `newsService.ts`; mock when Supabase absent ([#52](https://github.com/ford442/gold_tracker/issues/52))
 - **Analytics workers** — `workers/analyticsWorker.ts` + `workerClient.ts` ([#54](https://github.com/ford442/gold_tracker/issues/54))
+- **WASM math kernel** — optional C++ `packages/gt-math` loaded in the analytics worker ([#32](https://github.com/ford442/gold_tracker/issues/32)); TS fallback if the artifact is missing
 - **Tax lots** — `portfolioLots.ts` + cost-basis UI ([#41](https://github.com/ford442/gold_tracker/issues/41))
 - **E2E smoke** — `e2e/` + CI job ([#36](https://github.com/ford442/gold_tracker/issues/36))
 - **Backtesting & Scenario Lab** — `strategyEngine.ts` + `historicalTicks.ts` (CoinGecko replay with synthetic fallback)
@@ -32,7 +33,6 @@ One-page navigable summary of shipped work and verified open gaps. Deep vision a
 | Theme | Issue / track | Priority | Note |
 |-------|---------------|----------|------|
 | Gemini trading | — | P2 | Quote-only today (`canTrade: false` in registry) |
-| WASM offload | [#32](https://github.com/ford442/gold_tracker/issues/32) | P3 | Deferred; web workers shipped ([#54](https://github.com/ford442/gold_tracker/issues/54)) |
 
 Issues [#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54) may show **closed** on GitHub while docs lagged — the table above reflects **`main` code**, not issue state.
 
@@ -72,7 +72,7 @@ flowchart TB
   FetchNews[fetch-news Edge Function] --> NewsFeed[NewsFeed]
 ```
 
-**Today on `main`:** the diagram above is largely implemented client-side. Remaining gaps: Gemini execution adapter and optional WASM math offload ([#32](https://github.com/ford442/gold_tracker/issues/32)).
+**Today on `main`:** the diagram above is largely implemented client-side. Remaining gap: Gemini execution adapter.
 
 ---
 

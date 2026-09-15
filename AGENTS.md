@@ -181,6 +181,8 @@ goldtracker/
 │   │   ├── priceTransport.ts       # Poll + WebSocket transport with auto fallback
 │   │   ├── venueQuoteFanout.ts     # Parallel cross-venue quote fetch for arb monitor
 │   │   ├── workerClient.ts         # analyticsWorker RPC + main-thread fallback
+│   │   ├── analyticsDispatch.ts    # TS reference impl for worker + fallback
+│   │   ├── nativeAnalytics.ts      # optional WASM kernel (worker-only; never import from UI)
 │   │   ├── supabase.ts             # Supabase client with graceful mock fallback
 │   │   ├── coinbase.ts             # Coinbase CDP account fetching (getCoinbaseAccounts)
 │   │   ├── coinbaseTrader.ts       # Client-side CDP JWT signing + order placement
@@ -201,7 +203,9 @@ goldtracker/
 │   ├── schema.sql           # Database schema (user_exchange_keys, order_journal, trade_logs, RLS policies)
 │   ├── DEPLOY.md            # Deployment guide
 │   └── README.md            # Backend documentation
-├── public/                  # Static assets
+├── public/                  # Static assets (optional gt-math WASM copied here by `npm run build:wasm`)
+├── packages/
+│   └── gt-math/             # Optional C++ WASM kernel (Emscripten; compile_commands.json in package build/)
 ├── deploy.py                # SFTP deployment script
 └── [config files]
 ```
@@ -215,8 +219,11 @@ npm install
 # Start development server
 npm run dev
 
-# Build for production
+# Build for production (does not require Emscripten)
 npm run build
+
+# Optional C++ WASM kernel (Emscripten); copies artifacts to public/gt-math/
+npm run build:wasm
 
 # Run ESLint
 npm run lint
@@ -638,7 +645,7 @@ Component-level tests are still out of scope; for other UI checks:
 
 > **Truth protocol.** GitHub **closed ≠ shipped**. Before assuming a module exists: (1) `git ls-tree origin/main -- <path>`, (2) confirm hook/UI imports (grep from `src/hooks/` or `src/components/`), (3) update [docs/SHIPPED.md](docs/SHIPPED.md) + `code_plan.md` Done/Remaining in the same PR. See [code_plan.md § Truth protocol](code_plan.md#truth-protocol-for-agents).
 
-- **Shipped vs open (check `main`).** Foundation issues ([#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54)) are largely **implemented on `main`** even when GitHub shows zero open issues. Use [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/SHIPPED.md), and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) — not issue state alone. Verified gaps today: Gemini trading and WASM offload ([#32](https://github.com/ford442/gold_tracker/issues/32)).
+- **Shipped vs open (check `main`).** Foundation issues ([#45](https://github.com/ford442/gold_tracker/issues/45)–[#54](https://github.com/ford442/gold_tracker/issues/54)) are largely **implemented on `main`** even when GitHub shows zero open issues. Use [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/SHIPPED.md), and [code_plan.md](code_plan.md#for-agents--closed-issues-vs-shipped) — not issue state alone. Verified gap today: Gemini trading. Optional WASM math ([#32](https://github.com/ford442/gold_tracker/issues/32)) lives in `packages/gt-math` and is loaded only by the analytics worker (`nativeAnalytics.ts`); UI must never import `.wasm`.
 - Always maintain the existing dark-first theming approach
 - When adding new stores, use the persist middleware for data that should survive page reloads
 - Mock data is provided for all API calls to ensure the app works without API keys

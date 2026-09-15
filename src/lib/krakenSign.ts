@@ -40,9 +40,12 @@ export async function signKrakenPrivateRequest(
   message.set(pathBytes, 0);
   message.set(new Uint8Array(sha256Digest), pathBytes.length);
 
+  const keyBytes = new ArrayBuffer(secretKey.byteLength);
+  new Uint8Array(keyBytes).set(secretKey);
+
   const hmacKey = await crypto.subtle.importKey(
     'raw',
-    secretKey,
+    keyBytes,
     { name: 'HMAC', hash: 'SHA-512' },
     false,
     ['sign'],

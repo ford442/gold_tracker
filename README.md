@@ -156,7 +156,7 @@ Direction is tracked in [GitHub Issues](https://github.com/ford442/gold_tracker/
 - **Docs** — [#51](https://github.com/ford442/gold_tracker/issues/51) refresh `code_plan.md` / roadmap (this pass)
 - **OMS foundation** — [#46](https://github.com/ford442/gold_tracker/issues/46) order lifecycle, [#45](https://github.com/ford442/gold_tracker/issues/45) shared registry, [#47](https://github.com/ford442/gold_tracker/issues/47) adapter unification, [#50](https://github.com/ford442/gold_tracker/issues/50) live risk engine *(issues may be closed before merge — verify on `main`)*
 - **Data & markets** — [#48](https://github.com/ford442/gold_tracker/issues/48) WebSocket prices, [#52](https://github.com/ford442/gold_tracker/issues/52) news proxy, [#53](https://github.com/ford442/gold_tracker/issues/53) real multi-venue arb
-- **Performance** — [#54](https://github.com/ford442/gold_tracker/issues/54) analytics web workers
+- **Performance** — [#54](https://github.com/ford442/gold_tracker/issues/54) analytics web workers; [#32](https://github.com/ford442/gold_tracker/issues/32) optional C++ WASM kernel (`packages/gt-math`)
 
 See **[docs/ROADMAP.md](docs/ROADMAP.md)** for a one-page summary and **[code_plan.md](code_plan.md)** for the full OMS vision with Done/Remaining checklists.
 

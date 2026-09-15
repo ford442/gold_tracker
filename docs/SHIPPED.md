@@ -56,6 +56,7 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 |--------|-------------|------------|
 | Analytics worker | `src/workers/analyticsWorker.ts` | `lib/workerClient.ts` |
 | Worker client | `src/lib/workerClient.ts` | `useStrategyBacktest`, `useRegimeAnalysis` |
+| WASM math kernel (optional) | `packages/gt-math/`, `src/lib/nativeAnalytics.ts` | `analyticsWorker.ts` (`initWasm`); TS `analyticsDispatch` fallback |
 | Historical backtest ticks (pure) | `src/lib/historicalTicks.ts` | `useStrategyBacktest.ts` via `marketCache` |
 | Data source UI | `src/components/strategy/DataSourceSelector.tsx` | `StrategyDashboard.tsx` |
 | Counterfactual trade engine (pure) | `src/lib/counterfactual.ts` | `useCounterfactual.ts` |
@@ -68,7 +69,6 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 | Gap | Why |
 |-----|-----|
 | Gemini live trading | Registry `canTrade: false`; no adapter |
-| `lint:strict` CI gate | ~52 violations remain |
 
 
 

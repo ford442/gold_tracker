@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:wasm": "bash scripts/build-wasm.sh",
     "lint": "eslint .",
     "lint:strict": "ESLINT_STRICT=1 eslint .",
     "typecheck": "tsc -b",

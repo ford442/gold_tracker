@@ -44,7 +44,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,woff2,wasm}'],
         navigateFallback: 'index.html',
         runtimeCaching: [
           {
@@ -146,6 +146,7 @@ export default defineConfig({
         'src/lib/riskEngine.ts',
         'src/lib/newsParser.ts',
         'src/lib/analyticsDispatch.ts',
+        'src/lib/nativeAnalytics.ts',
         'src/lib/venueQuoteFanout.ts',
         'src/lib/workerClient.ts',
         'src/lib/keyDisplay.ts',

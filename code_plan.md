@@ -25,6 +25,7 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 - [x] **Adapter-routed execution** ([#47](https://github.com/ford442/gold_tracker/issues/47)) — `exchangeAdapters.ts` + `executeOrder.ts`; trade suggestions + global arb monitor call `executeOrderWithLifecycle`
 - [x] **Back-testing engine** — pure TS `strategyEngine.ts` (arbitrage, mean-reversion, gold-exposure rebalancer, hold) with equity curve, trade log, max drawdown
 - [x] **Analytics web workers** ([#54](https://github.com/ford442/gold_tracker/issues/54)) — `workers/analyticsWorker.ts` + `workerClient.ts` (backtests + rolling correlations; main-thread fallback)
+- [x] **WASM analytics kernel** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — optional C++/Emscripten `packages/gt-math`; worker loads via `nativeAnalytics.ts`; TS `analyticsDispatch` fallback
 - [x] **Scenario / stress testing** — Scenario Lab with macro shocks, portfolio seeding, and rebalance-vs-hold benchmarks
 - [x] **Algorithmic signals** — trade suggestions + arbitrage detection + global arbitrage monitor
 - [x] **Real multi-venue arbitrage** ([#53](https://github.com/ford442/gold_tracker/issues/53)) — `venueQuotes.ts` + `venueQuoteFanout.ts` + `GlobalArbitrageMonitor` (Coinbase, Kraken, Gemini quote-only)
@@ -49,7 +50,6 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 ### Remaining ▢ (verified gaps only)
 
 - [ ] **Gemini live trading** — Gemini is quote-only in `shared/exchanges.json` (`canTrade: false`); no `ExchangeAdapter` or Edge execution path
-- [ ] **WASM analytics offload** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — deferred; web workers shipped instead ([#54](https://github.com/ford442/gold_tracker/issues/54))
 
 **Mock vs live vs shipped (on `main` today):**
 
@@ -87,7 +87,7 @@ When a feature ships, move it from Remaining → Done here and check the box in 
 | [#28](https://github.com/ford442/gold_tracker/issues/28) news RSS | CORS in browser | [#52](https://github.com/ford442/gold_tracker/issues/52) shipped | `services/newsService.ts` → `fetch-news` Edge Function; mock when Supabase absent |
 | [#38](https://github.com/ford442/gold_tracker/issues/38) WebSocket | Superseded | [#48](https://github.com/ford442/gold_tracker/issues/48) shipped | `lib/priceTransport.ts` + `useGoldPrices` + Settings Data Feed |
 | [#33](https://github.com/ford442/gold_tracker/issues/33) multi-venue | Phase A label | [#45](https://github.com/ford442/gold_tracker/issues/45), [#47](https://github.com/ford442/gold_tracker/issues/47), [#53](https://github.com/ford442/gold_tracker/issues/53) shipped | `shared/registry.ts`, `executeOrder.ts`, `venueQuoteFanout.ts` |
-| [#32](https://github.com/ford442/gold_tracker/issues/32) WASM perf | Deferred | [#54](https://github.com/ford442/gold_tracker/issues/54) workers shipped | `src/workers/analyticsWorker.ts`, `lib/workerClient.ts` |
+| [#32](https://github.com/ford442/gold_tracker/issues/32) WASM perf | Closed as deferred; **now shipped** as optional kernel | Workers (#54) + `packages/gt-math` | `nativeAnalytics.ts`, `packages/gt-math/`, worker loads WASM |
 | [#46](https://github.com/ford442/gold_tracker/issues/46) order lifecycle | Closed on GitHub | **Shipped** (client + server journal sync) | `orderLifecycle.ts`, `orderStore`, `useOrderReconciliation`, `useOrderSync`, `OrderHistoryPanel` |
 | [#45](https://github.com/ford442/gold_tracker/issues/45) registry | Closed on GitHub | **Shipped** | `shared/exchanges.json`, Edge `_shared/registry.ts` |
 | [#47](https://github.com/ford442/gold_tracker/issues/47) adapters | Closed on GitHub | **Shipped** | `executeOrderWithLifecycle` → `getAdapter()`; no direct `coinbaseTrader` from UI |
@@ -103,12 +103,11 @@ When in doubt, read [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SHIPPED.md](docs/S
 
 ## 2. Trading-Proficiency Assessment (updated)
 
-GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies on real CoinGecko ticks (with synthetic fallback), stress-test a portfolio, practice via the paper ledger, stream or poll live prices, enforce pre-trade risk limits, reconcile orders after outages, sync a durable Postgres order journal, and inspect trade/connectivity health in Settings. What separates it from a *proficient* multi-venue OMS is primarily **Gemini execution** and optional **WASM math offload** — not the absence of execution, risk gates, observability, or streaming data.
+GoldTrackr **can** now place and route trades on Coinbase and Kraken, backtest strategies on real CoinGecko ticks (with synthetic fallback), stress-test a portfolio, practice via the paper ledger, stream or poll live prices, enforce pre-trade risk limits, reconcile orders after outages, sync a durable Postgres order journal, and inspect trade/connectivity health in Settings. What separates it from a *proficient* multi-venue OMS is primarily **Gemini execution** — not the absence of execution, risk gates, observability, streaming data, or an optional WASM math kernel.
 
 Prioritized path to close the remaining gap:
 
 1. **Gemini trading** — adapter + Edge path for venues marked `canTrade: true`
-2. **WASM analytics offload** ([#32](https://github.com/ford442/gold_tracker/issues/32)) — optional; web workers shipped ([#54](https://github.com/ford442/gold_tracker/issues/54))
 
 ---
 

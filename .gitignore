@@ -30,3 +30,8 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Optional C++ WASM kernel (generated; see packages/gt-math/README.md)
+packages/gt-math/build/
+packages/gt-math/dist/
+public/gt-math/

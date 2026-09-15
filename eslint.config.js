@@ -41,7 +41,7 @@ const phasedTypeSafetyRules = {
 }
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'supabase/**'] },
+  { ignores: ['dist/**', 'coverage/**', 'supabase/**', 'packages/gt-math/build/**', 'packages/gt-math/dist/**', 'public/gt-math/**'] },
   {
     files: ['src/**/*.{ts,tsx}'],
     extends: [
