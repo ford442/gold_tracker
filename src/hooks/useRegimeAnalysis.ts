@@ -49,8 +49,6 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
-
     setLoading(true);
     setError(null);
 
@@ -59,7 +57,7 @@ export function useRegimeAnalysis(horizon: AnalysisHorizon): {
     void (async () => {
       try {
         const [paxgRaw, xautRaw, btcRaw, ethRaw] = await Promise.all(
-          ids.map((id) => getMarketChartSeries(id, days, interval, { signal: controller.signal, apiKey })),
+          ids.map((id) => getMarketChartSeries(id, days, interval, { signal: controller.signal })),
         );
 
         if (controller.signal.aborted) return;

@@ -37,6 +37,7 @@ The original version of this plan claimed GoldTrackr had *no order execution* an
 - [x] **Alerting** — desktop arbitrage alerts + configurable alert rules
 - [x] **Paper-trading ledger** ([#35](https://github.com/ford442/gold_tracker/issues/35)) — `paperTradeStore`, `PaperLedgerPanel`, dry-run fills via `lib/paperTrade.ts`
 - [x] **Shared market-history cache** ([#34](https://github.com/ford442/gold_tracker/issues/34)) — `lib/marketCache.ts` (TTL + in-flight dedupe)
+- [x] **CoinGecko proxy + resilient client** — `lib/coingeckoClient.ts` (proxy routing, concurrency cap, 429/5xx backoff + `Retry-After`, shared cooldown, direct fallback) + `coingecko-proxy` Edge Function (`shared/coingeckoProxy.ts`: allowlist, shared cache, stale-on-error, 429 cooldown, CORS on every response). Fixes production `ERR_FAILED`/CORS failures and keeps the API key server-side. **Deploy step required:** `supabase functions deploy coingecko-proxy` + `supabase secrets set COINGECKO_API_KEY=…` (until deployed the client falls back to direct)
 - [x] **Multi-exchange adapter Phase A** ([#33](https://github.com/ford442/gold_tracker/issues/33)) — `exchangeAdapters.ts` + `exchanges.ts` (Coinbase/Kraken live; Gemini planned)
 - [x] **E2E smoke tests** ([#36](https://github.com/ford442/gold_tracker/issues/36)) — `e2e/` + dedicated CI job
 - [x] **Tax-lot accounting** ([#41](https://github.com/ford442/gold_tracker/issues/41)) — `portfolioLots.ts` + cost-basis / gold-oz UI

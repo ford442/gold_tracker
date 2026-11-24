@@ -13,6 +13,7 @@ Follow the one-way data flow: pure logic in `src/lib/` → hooks in `src/hooks/`
 - Add capability **pure-logic-first** with Vitest coverage for non-trivial `src/lib/` modules.
 - Components must **not** import `coinbaseTrader` directly — route execution through `executeOrderWithLifecycle` / `useOrderExecution`.
 - Market history must go through `getMarketChartSeries` in `src/lib/marketCache.ts` — never call CoinGecko chart APIs directly from UI/hooks.
+- Every CoinGecko request goes through `getCoinGeckoClient()` in `src/lib/coingeckoClient.ts` (proxy, concurrency cap, backoff) — never `fetch('https://api.coingecko.com/…')` directly, and don't read `VITE_COINGECKO_API_KEY` outside that client.
 - Exchange fees, pairs, and capabilities come from `shared/exchanges.json` via `src/lib/exchanges.ts` — do not hardcode venue fees.
 - Edge Functions live under `supabase/functions/` and are validated with `npm run check:edge` (Deno lint + typecheck), not ESLint.
 

@@ -23,7 +23,6 @@ export function PerformanceComparisonChart() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     const loadData = async () => {
       try {
@@ -32,10 +31,7 @@ export function PerformanceComparisonChart() {
 
         const seriesByAsset = await Promise.all(
           PERFORMANCE_ASSETS.map((asset) =>
-            getMarketChartSeries(asset.id, String(days), 'daily', {
-              signal: controller.signal,
-              apiKey,
-            }),
+            getMarketChartSeries(asset.id, String(days), 'daily', { signal: controller.signal }),
           ),
         );
 

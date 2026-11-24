@@ -61,6 +61,7 @@ supabase functions deploy store-key
 supabase functions deploy place-trade
 supabase functions deploy test-connection
 supabase functions deploy fetch-news
+supabase functions deploy coingecko-proxy
 ```
 
 ### 5. Configure Frontend
@@ -104,6 +105,21 @@ Response:
   "cached": false
 }
 ```
+
+### `coingecko-proxy`<a id="coingecko-proxy"></a>
+Cached, CORS-safe read-through proxy for the two CoinGecko endpoints the app uses. Keeps the API key off the client and shields CoinGecko's per-IP rate limit. Logic lives in `shared/coingeckoProxy.ts` (unit-tested); `index.ts` only does I/O.
+
+**GET** `/functions/v1/coingecko-proxy/coins/markets?ids=…&sparkline=…&price_change_percentage=…`
+**GET** `/functions/v1/coingecko-proxy/coins/{id}/market_chart?days=…&interval=…`
+
+- Secret: `COINGECKO_API_KEY` (free CoinGecko demo key, optional but recommended): `supabase secrets set COINGECKO_API_KEY=…`
+- Strict allowlist: only those two routes, `vs_currency=usd`, a fixed set of coin ids, bounded `days`/`interval`. Anything else is a `400`/`404` (so it can't be used as an open relay or to burn quota).
+- Cache: markets 60 s, charts 5–30 min by horizon; concurrent identical requests share one upstream call; payloads that aren't valid CoinGecko JSON are never cached.
+- Resilience: after an upstream `429` it leaves CoinGecko alone for `Retry-After` (5 s–5 min), and serves the last good copy (up to 24 h old) instead of an error when upstream is failing.
+- Every response — including `4xx`/`5xx` — carries CORS headers, and exposes `Retry-After`, `X-GT-Cache` (`HIT`/`MISS`/`STALE`/`NONE`) and `X-GT-Proxy`.
+- Per-IP limit: 600 requests/hour (in-memory, per Edge isolate).
+- Adding a tracked asset: add its CoinGecko id to `ALLOWED_COIN_IDS` in `shared/coingeckoProxy.ts` (a test fails if `src/lib/assets.ts` and the list drift apart).
+- The client sends the Supabase anon JWT only when the proxy is on the Supabase origin; it is never sent to a third-party `VITE_COINGECKO_PROXY_URL`.
 
 ### `place-trade`
 Executes a trade using stored keys.

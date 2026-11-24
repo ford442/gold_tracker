@@ -45,7 +45,7 @@ GoldTrackr is a real-time gold and cryptocurrency dashboard that tracks PAXG, XA
 
 | API | Purpose | Fallback |
 |-----|---------|----------|
-| CoinGecko | Crypto prices (PAXG, XAUT, BTC, ETH, BCH) + historical market charts | Mock data |
+| CoinGecko | Crypto prices (PAXG, XAUT, BTC, ETH, BCH) + historical market charts — via `coingecko-proxy` Edge Function when Supabase is configured, else direct | Mock data |
 | MetalPrice | Spot gold prices | Mock data |
 | Kitco RSS (via Edge) | Gold-related news | `fetch-news` Edge Function; mock news when Supabase absent |
 | Coinbase (CDP) | Trading execution + account balances | N/A |
@@ -157,6 +157,7 @@ goldtracker/
 │   │   ├── api.ts                  # API fetching functions (CoinGecko, MetalPrice, mock data, mock news)
 │   │   ├── counterfactual.ts       # Pure what-if trade math, fee drag & valuation trajectories
 │   │   ├── marketCache.ts          # Shared market-history cache: TTL + in-flight dedupe + abort + invalidate (wraps fetchMarketChartSeries)
+│   │   ├── coingeckoClient.ts      # Single choke point for ALL CoinGecko HTTP: proxy routing, concurrency cap, 429/5xx backoff + Retry-After, shared cooldown, direct fallback (pure, injectable fetch/clock)
 │   │   ├── assets.ts               # Single source of truth for tracked assets (ids, symbols, CoinGecko/Coinbase mapping)
 │   │   ├── utils.ts                # Formatting and math utilities
 │   │   ├── metalprice.ts           # Spot metal parsing/normalization helpers
@@ -192,14 +193,16 @@ goldtracker/
 │   └── index.css            # Global styles with CSS variables (glass-morphism design system)
 ├── shared/                  # Canonical exchange registry (Vite + Deno)
 │   ├── exchanges.json              # Venue metadata (fees, pairs, capabilities)
-│   └── registry.ts                 # Pure helpers; unit-tested
+│   ├── registry.ts                 # Pure helpers; unit-tested
+│   └── coingeckoProxy.ts           # Pure CoinGecko proxy core: route validation/canonicalisation, allowlist, TTL cache, 429 cooldown, stale-on-error; unit-tested
 ├── supabase/                # Supabase backend
 │   ├── functions/           # Edge Functions
 │   │   ├── store-key/index.ts      # Encrypt & store exchange API keys (AES-GCM)
 │   │   ├── place-trade/index.ts    # Execute trades on Coinbase/Kraken (jose library)
 │   │   ├── fetch-news/index.ts     # Server-side RSS aggregation for Markets news
+│   │   ├── coingecko-proxy/index.ts # Cached, CORS-safe CoinGecko proxy (I/O shell over shared/coingeckoProxy.ts); holds COINGECKO_API_KEY
 │   │   ├── test-connection/index.ts # Test exchange connectivity
-│   │   └── _shared/registry.ts     # Re-export of shared/registry.ts for Deno
+│   │   └── _shared/                # registry.ts + coingeckoProxy.ts re-export shared/*.ts for Deno
 │   ├── schema.sql           # Database schema (user_exchange_keys, order_journal, trade_logs, RLS policies)
 │   ├── DEPLOY.md            # Deployment guide
 │   └── README.md            # Backend documentation
@@ -412,7 +415,8 @@ export const useStore = create<StoreState>()(
 Copy `.env.local.example` to `.env.local` and optionally add:
 
 ```bash
-VITE_COINGECKO_API_KEY=your_key_here
+VITE_COINGECKO_API_KEY=your_key_here      # dev only — public in the bundle; prod key lives on the proxy (COINGECKO_API_KEY secret)
+VITE_COINGECKO_PROXY_URL=                  # optional: CoinGecko-shaped proxy URL, or `direct` to bypass the proxy
 VITE_METALPRICE_API_KEY=your_key_here
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -627,7 +631,7 @@ npm run test:watch    # watch mode
 npm run test:coverage # coverage gate: pure src/lib modules ≥ 70% statements
 ```
 
-Coverage scope: pure `src/lib` modules in `vite.config.ts` `coverage.include` (utils, regime, strategyEngine, marketCache, order lifecycle, venue fanout, workerClient, etc.) plus `shared/registry.ts` (API client files excluded — see `vite.config.ts`).
+Coverage scope: pure `src/lib` modules in `vite.config.ts` `coverage.include` (utils, regime, strategyEngine, marketCache, order lifecycle, venue fanout, workerClient, etc.) plus `shared/registry.ts` and `shared/coingeckoProxy.ts` (API client files excluded — see `vite.config.ts`; `coingeckoClient.ts` is included because it is pure with injectable I/O).
 
 CI (`.github/workflows/ci.yml`) runs `npm run lint`, `npm run lint:strict`, test, coverage, build, and a parallel `edge-functions` job (`npm run check:edge`). Merges are blocked when lint reports errors, strict lint fails, tests fail, coverage drops below thresholds, or the build breaks. ESLint may emit warnings without failing CI — currently one known `react-hooks/exhaustive-deps` warning in `StrategyDashboard.tsx`.
 
@@ -661,7 +665,8 @@ Component-level tests are still out of scope; for other UI checks:
 - **News path.** `useNews` → `services/newsService.fetchLiveNews` invokes the `fetch-news` Edge Function when Supabase is configured; otherwise mock/demo items (legacy `api.fetchGoldNews` delegates here). `NewsFeed` shows source badges and mock indicator.
 - **Paper / dry-run / live journal.** When `dryRun` is on, `executeOrderWithLifecycle` records a simulated fill (`buildPaperFill` in `lib/paperTrade.ts`) to `paperTradeStore` **and** a journal row in `orderStore` (`mode: 'paper'`). Live orders (`dryRun` off) pass `riskEngine` checks first, route through adapters or Edge, and append to the same client journal. Reconciliation runs from `App.tsx` via `useOrderReconciliation`; multi-device sync via `useOrderSync` + Postgres `order_journal`. Keep LIVE (🚀) vs PAPER (🧪) explicit in trading UI. Paper P&L / equity curve / CSV export come from `lib/paperTrade.ts`.
 - All chart components use Recharts with `isAnimationActive={false}` for performance
-- **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal, apiKey })`. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
+- **Market history goes through `lib/marketCache.ts`.** Do not call `fetchMarketChartSeries` (or raw `fetch(...market_chart...)`) directly from components/hooks — use `getMarketChartSeries(cgId, days, interval, { signal })`. Components/hooks must **not** read `VITE_COINGECKO_API_KEY` — the client owns key/proxy resolution. It de-dupes concurrent identical `(cgId, days, interval)` requests into one network call, serves a TTL cache (~10 min), forwards each caller's AbortSignal without cancelling the shared fetch, never caches empty/failed results, and optionally falls back to a last-good sessionStorage copy. Keyboard `R` calls `clearMarketCache()` to bust prices + history. It is pure/unit-tested (network injectable via `opts.fetcher`) and in the coverage gate.
+- **CoinGecko transport goes through `lib/coingeckoClient.ts`.** `api.ts` (`fetchCryptoPrices`, `fetchMarketChartSeries`) calls `getCoinGeckoClient().getJson(...)`; nothing else may `fetch` CoinGecko. Why: direct browser calls share CoinGecko's per-IP rate limit, and a rejected call surfaces as an opaque CORS/`ERR_FAILED` with no status. The client routes via the `coingecko-proxy` Edge Function by default when Supabase is configured (`resolveCoinGeckoConfig`: `VITE_COINGECKO_PROXY_URL` override, `direct` to bypass), caps concurrency, retries 429 with exponential backoff honouring `Retry-After`, shares a cooldown gate across requests, and falls back to direct only when the proxy is *unreachable* (never on 429/5xx — that would add load). Retry/fallback telemetry is recorded with `ok: false` so it can't count as a successful price fetch in `observability` health. The Supabase anon JWT is attached only to proxy URLs on the Supabase origin. When adding a tracked asset, also add its CoinGecko id to `ALLOWED_COIN_IDS` in `shared/coingeckoProxy.ts` (a test enforces this). Proxy logic is pure in `shared/coingeckoProxy.ts`; `supabase/functions/coingecko-proxy/index.ts` is I/O only and is validated by `npm run check:edge`.
 - Respect the glass-morphism design system — use `.glass-card`, CSS variables, and consistent spacing
 - Scenario & stress testing (Feature 3): **pure engine first** — new `createGoldExposureRebalancer` / `createHoldStrategy`, lightly extended `runBacktest(initialPositions?)`, pure shock helpers in strategyEngine.ts. StrategyDashboard hosts "Scenario Lab" internal mode (seed from portfolio, shocks, rebal + benchmarks, final gold oz, repeated NFA + "gross of fees" notes). Never mutate holdings; snapshots only. Matches "update pure engine first" rule.
 - Regime / fidelity analysis: pure computations **must** live in `src/lib/regime.ts`. UI (scores, long matrix, rolling history, live deltas vs tactical corrs, strong NFA disclaimers) lives in `RegimeLens.tsx` (mounted from the "Fidelity & Regimes" tab in GoldComparisonTools). Spot gold long history is **always synthesized** — every label and interpretation box must surface "synthesized / estimated / model". CorrelationMatrix remains the short-term tactical view; the new tab provides the structural extension.

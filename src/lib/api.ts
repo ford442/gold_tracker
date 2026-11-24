@@ -10,8 +10,8 @@ import {
   type MetalpriceTimeframeResponse,
 } from './metalprice';
 import { COINGECKO_MARKET_IDS } from './assets';
+import { getCoinGeckoClient } from './coingeckoClient';
 
-const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 const METALPRICE_BASE = 'https://api.metalpriceapi.com/v1';
 
 interface CoinGeckoMarketCoin {
@@ -34,8 +34,10 @@ function parseCoinGeckoMarkets(raw: unknown): CoinGeckoMarketCoin[] {
 /**
  * Reusable thin wrapper for CoinGecko /coins/{id}/market_chart.
  * Returns the raw [ts, price][] or [] on error (caller decides fallback).
- * Respects AbortSignal and optional demo API key header.
- * Used by overlay, trade replay, performance, and new regime/fidelity analysis.
+ * Goes through `coingeckoClient` (proxy, concurrency cap, backoff on 429/5xx).
+ * `apiKey` is optional: the client already knows the configured key, and only
+ * uses it on the direct (non-proxy) path.
+ * Prefer `getMarketChartSeries` from `marketCache` — this is its default fetcher.
  */
 export async function fetchMarketChartSeries(
   cgId: string,
@@ -44,14 +46,12 @@ export async function fetchMarketChartSeries(
   signal?: AbortSignal,
   apiKey?: string
 ): Promise<[number, number][]> {
-  const headers: HeadersInit = apiKey ? { 'x-cg-demo-api-key': apiKey } : {};
   try {
-    const res = await fetch(
-      `${COINGECKO_BASE}/coins/${cgId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`,
-      { signal, headers }
+    const json = await getCoinGeckoClient().getJson<{ prices?: [number, number][] }>(
+      `/coins/${encodeURIComponent(cgId)}/market_chart`,
+      { vs_currency: 'usd', days, interval },
+      { signal, apiKey },
     );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json() as { prices: [number, number][] };
     return json.prices ?? [];
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') throw err;
@@ -69,20 +69,19 @@ function mockSparkline(basePrice: number, points = 24): SparklinePoint[] {
 }
 
 export async function fetchCryptoPrices(apiKey?: string): Promise<Record<string, PriceData> & { __mock?: boolean }> {
-  const ids = COINGECKO_MARKET_IDS;
-  const headers: Record<string, string> = {};
-  if (apiKey) headers['x-cg-demo-api-key'] = apiKey;
-
   try {
-    const res = await fetch(`${COINGECKO_BASE}/coins/markets?${new URLSearchParams({
-      vs_currency: 'usd',
-      ids,
-      sparkline: 'true',
-      price_change_percentage: '24h,7d',
-    })}`, { headers });
-
-    if (!res.ok) throw new Error(`CoinGecko error: ${res.status}`);
-    const data = parseCoinGeckoMarkets(await res.json());
+    const data = parseCoinGeckoMarkets(
+      await getCoinGeckoClient().getJson<unknown>(
+        '/coins/markets',
+        {
+          vs_currency: 'usd',
+          ids: COINGECKO_MARKET_IDS,
+          sparkline: 'true',
+          price_change_percentage: '24h,7d',
+        },
+        { apiKey },
+      ),
+    );
 
     const result: Record<string, PriceData> = {};
     for (const coin of data) {

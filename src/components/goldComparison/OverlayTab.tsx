@@ -41,7 +41,6 @@ export function OverlayTab() {
     setOverlayData([]);
 
     const { days, interval } = RANGE_PARAMS[currentRange];
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     const cgInstruments = OVERLAY_INSTRUMENTS.filter((i) => i.cgId !== null);
     const results: Record<string, [number, number][]> = {};
@@ -53,7 +52,6 @@ export function OverlayTab() {
       try {
         const series = await getMarketChartSeries(inst.cgId, days, interval, {
           signal: controller.signal,
-          apiKey,
         });
         results[inst.id] = series.length ? series : sparklineFallback(inst.cgId);
       } catch (err) {
