@@ -18,6 +18,9 @@ rg "useOrderReconciliation|OrderHistoryPanel" src/
 |--------|-------------|------------|
 | Price transport (poll + WS) | `src/lib/priceTransport.ts` | `useGoldPrices`, `settings/DataFeedPanel.tsx` |
 | Market history cache | `src/lib/marketCache.ts` | hooks/charts via `getMarketChartSeries` |
+| CoinGecko client (proxy routing, backoff, cooldown) | `src/lib/coingeckoClient.ts` | `lib/api.ts` (`fetchCryptoPrices`, `fetchMarketChartSeries`) → `useGoldPrices`, `marketCache` |
+| CoinGecko proxy core (pure) | `shared/coingeckoProxy.ts` | `supabase/functions/coingecko-proxy/index.ts` via `_shared/coingeckoProxy.ts` |
+| CoinGecko proxy Edge Function | `supabase/functions/coingecko-proxy/index.ts` | `coingeckoClient` (default route when Supabase is configured) |
 | Venue quote fanout | `src/lib/venueQuoteFanout.ts` | `useVenueQuotes`, `GlobalArbitrageMonitor` |
 
 ## Execution plane

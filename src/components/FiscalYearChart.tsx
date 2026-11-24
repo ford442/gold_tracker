@@ -78,8 +78,7 @@ export function FiscalYearChart() {
     abortRef.current = controller;
     setIsLoading(true);
 
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
-    getMarketChartSeries('pax-gold', 'max', 'daily', { signal: controller.signal, apiKey })
+    getMarketChartSeries('pax-gold', 'max', 'daily', { signal: controller.signal })
       .then((series) => {
         if (series.length >= 730) {
           setHistory(series);

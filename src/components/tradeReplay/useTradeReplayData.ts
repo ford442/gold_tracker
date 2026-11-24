@@ -22,12 +22,11 @@ export function useTradeReplayData(
     abortRef.current = controller;
 
     const { days, interval } = RANGE_PARAMS[range];
-    const apiKey = import.meta.env.VITE_COINGECKO_API_KEY;
 
     setIsLoadingHistory(true);
     setHistoricalData(null);
 
-    getMarketChartSeries(selectedAssetId, days, interval, { signal: controller.signal, apiKey })
+    getMarketChartSeries(selectedAssetId, days, interval, { signal: controller.signal })
       .then((series) => {
         const pts: SparklinePoint[] = series.map(([time, price]) => ({ time, price }));
         setHistoricalData(pts.length ? pts : null);

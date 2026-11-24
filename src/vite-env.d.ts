@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_COINGECKO_API_KEY?: string;
+  /** CoinGecko-shaped proxy URL, or `direct` to bypass the proxy. See README. */
+  readonly VITE_COINGECKO_PROXY_URL?: string;
   readonly VITE_METALPRICE_API_KEY?: string;
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;

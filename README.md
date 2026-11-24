@@ -86,12 +86,30 @@ Without any API keys the app runs entirely on realistic mock data, so the dashbo
 
 | Variable | Source | Notes |
 |---|---|---|
-| `VITE_COINGECKO_API_KEY` | [coingecko.com/api](https://www.coingecko.com/en/api) | Free demo key available |
+| `VITE_COINGECKO_API_KEY` | [coingecko.com/api](https://www.coingecko.com/en/api) | Free demo key. **Dev only** — shipped in the bundle; in production set `COINGECKO_API_KEY` on the proxy instead (below) |
+| `VITE_COINGECKO_PROXY_URL` | — | Optional. CoinGecko-shaped proxy URL (e.g. a Cloudflare Worker), or `direct` to bypass the proxy |
 | `VITE_METALPRICE_API_KEY` | [metalpriceapi.com](https://metalpriceapi.com) | Free tier: 100 calls/day |
 | `VITE_SUPABASE_URL` | [supabase.com](https://supabase.com) | Optional — server-secure trading |
 | `VITE_SUPABASE_ANON_KEY` | [supabase.com](https://supabase.com) | Optional — server-secure trading |
 
 Without API keys, the app uses realistic mock data automatically.
+
+### CoinGecko proxy (recommended for production)
+
+Browsers calling `api.coingecko.com` directly share CoinGecko's tight per-IP rate limit, and a rejected request shows up in the console as an opaque CORS / `net::ERR_FAILED` error (no readable status, no `Retry-After`) — after which the app falls back to mock data. All CoinGecko traffic therefore goes through one client (`src/lib/coingeckoClient.ts`) that:
+
+- routes via the **`coingecko-proxy` Supabase Edge Function** when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set (or any CoinGecko-shaped URL via `VITE_COINGECKO_PROXY_URL`);
+- caps concurrent requests, retries `429` / `5xx` / network errors with exponential backoff + jitter, honours `Retry-After`, and pauses all requests during a rate-limit cooldown;
+- falls back to direct CoinGecko if the proxy is unreachable (e.g. not deployed yet) and re-tries it after 5 minutes. It does **not** fall back on `429`/`5xx`, which would only add load.
+
+The proxy keeps the API key server-side, shares one cache across all visitors (markets 60 s, charts 5–30 min), de-dupes concurrent identical requests, serves the last good copy if CoinGecko is failing, and always returns CORS headers — errors included. Deploy it:
+
+```bash
+supabase functions deploy coingecko-proxy
+supabase secrets set COINGECKO_API_KEY=your_free_demo_key   # strongly recommended
+```
+
+Without `COINGECKO_API_KEY` the proxy uses CoinGecko's unauthenticated tier from a shared server IP, which is rate-limited aggressively; a free demo key (30 calls/min) avoids that. See [supabase/README.md](supabase/README.md#coingecko-proxy).
 
 ## Trading (Optional)
 

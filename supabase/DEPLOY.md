@@ -28,6 +28,10 @@ openssl rand -hex 32
 
 # Set as Supabase secret
 supabase secrets set ENCRYPTION_KEY=your-generated-key
+
+# Optional but recommended: free CoinGecko demo key for the coingecko-proxy function.
+# Stays server-side — never put it in a VITE_* variable for production builds.
+supabase secrets set COINGECKO_API_KEY=your-coingecko-demo-key
 ```
 
 ## Step 4: Deploy Edge Functions
@@ -41,6 +45,7 @@ supabase functions deploy store-key
 supabase functions deploy place-trade
 supabase functions deploy test-connection
 supabase functions deploy fetch-news
+supabase functions deploy coingecko-proxy
 
 # Or deploy all at once
 supabase functions deploy

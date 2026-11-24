@@ -115,7 +115,7 @@ export function useGoldPrices() {
     const start = performance.now();
     try {
       const [prices, gold, metals] = await Promise.all([
-        fetchCryptoPrices(import.meta.env.VITE_COINGECKO_API_KEY),
+        fetchCryptoPrices(),
         fetchSpotGold(import.meta.env.VITE_METALPRICE_API_KEY),
         fetchOtherMetals(import.meta.env.VITE_METALPRICE_API_KEY),
       ]);
